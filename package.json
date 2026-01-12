@@ -1,12 +1,12 @@
 {
   "name": "envsitter",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.0.1",
+  "private": false,
   "type": "module",
   "description": "Safely inspect and match .env secrets without exposing values",
   "license": "MIT",
   "bin": {
-    "envsitter": "./dist/cli.js"
+    "envsitter": "dist/cli.js"
   },
   "exports": {
     ".": {
