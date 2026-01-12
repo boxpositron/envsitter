@@ -20,14 +20,27 @@ test('resolvePepper reads from env when set', async () => {
 });
 
 test('resolvePepper creates a pepper file when missing', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'envsitter-'));
-  const pepperPath = join(dir, 'pepper');
+  const prevEnvSitterPepper = process.env.ENVSITTER_PEPPER;
+  const prevEnvSitterPepperAlt = process.env.ENV_SITTER_PEPPER;
+  delete process.env.ENVSITTER_PEPPER;
+  delete process.env.ENV_SITTER_PEPPER;
 
-  const pepper = await resolvePepper({ pepperFilePath: pepperPath });
-  assert.equal(pepper.source, 'file');
-  assert.equal(pepper.pepperFilePath, pepperPath);
-  assert.ok(pepper.pepperBytes.length >= 16);
+  try {
+    const dir = await mkdtemp(join(tmpdir(), 'envsitter-'));
+    const pepperPath = join(dir, 'pepper');
 
-  const persisted = (await readFile(pepperPath, 'utf8')).trim();
-  assert.ok(persisted.length > 0);
+    const pepper = await resolvePepper({ pepperFilePath: pepperPath });
+    assert.equal(pepper.source, 'file');
+    assert.equal(pepper.pepperFilePath, pepperPath);
+    assert.ok(pepper.pepperBytes.length >= 16);
+
+    const persisted = (await readFile(pepperPath, 'utf8')).trim();
+    assert.ok(persisted.length > 0);
+  } finally {
+    if (prevEnvSitterPepper === undefined) delete process.env.ENVSITTER_PEPPER;
+    else process.env.ENVSITTER_PEPPER = prevEnvSitterPepper;
+
+    if (prevEnvSitterPepperAlt === undefined) delete process.env.ENV_SITTER_PEPPER;
+    else process.env.ENV_SITTER_PEPPER = prevEnvSitterPepperAlt;
+  }
 });
