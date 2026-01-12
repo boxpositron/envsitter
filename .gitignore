@@ -1,0 +1,8 @@
+# Node / Bun
+node_modules/
+dist/
+
+# Local peppers / secrets (never commit)
+.env
+.env.*
+.envsitter/
