@@ -5,9 +5,10 @@ Safely inspect and match `.env` secrets **without ever printing values**.
 `envsitter` is designed for LLM/agent workflows where you want to:
 
 - List keys present in an env source (`.env` file or external provider)
-- Check whether a key’s value matches a candidate value you provide at runtime ("outside-in")
+- Compare a key’s value to a candidate value you provide at runtime ("outside-in")
 - Do bulk matching (one candidate against many keys, or candidates-by-key)
 - Produce deterministic fingerprints for comparisons/auditing
+- Ask boolean questions about values (empty/prefix/suffix/regex/type-ish checks) without ever returning the value
 
 Related: https://github.com/boxpositron/envsitter-guard — an OpenCode plugin that blocks agents/tools from reading or editing sensitive `.env*` files (preventing accidental secret leaks), while still allowing safe inspection via EnvSitter-style tools (keys + deterministic fingerprints; never values).
 
@@ -47,6 +48,14 @@ Resolution order:
 The pepper file is created with mode `0600` when possible, and `.envsitter/` is gitignored.
 
 ## CLI usage
+
+Commands:
+
+- `keys --file <path> [--filter-regex <re>]`
+- `fingerprint --file <path> --key <KEY>`
+- `match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]`
+- `match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)`
+- `scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]`
 
 ### List keys
 
@@ -116,27 +125,6 @@ node -e "process.stdout.write('/^sk-[a-z]+-/i')" \
 envsitter match --file .env --key OPENAI_API_KEY --op exists --json
 ```
 
-### Output contract (for LLMs)
-
-General rules:
-
-- Never output secret values; treat all values as sensitive.
-- Prefer `--candidate-stdin` over `--candidate` to avoid shell history.
-- Exit codes: `0` match found, `1` no match, `2` error/usage.
-
-JSON outputs:
-
-- `keys --json` -> `{ "keys": string[] }`
-- `fingerprint` -> `{ "key": string, "algorithm": "hmac-sha256", "fingerprint": string, "length": number, "pepperSource": "env"|"file", "pepperFilePath"?: string }`
-- `match --json` (single key) ->
-  - default op (not provided): `{ "key": string, "match": boolean }`
-  - with `--op`: `{ "key": string, "op": string, "match": boolean }`
-- `match --json` (bulk keys / all keys) ->
-  - default op (not provided): `{ "matches": Array<{ "key": string, "match": boolean }> }`
-  - with `--op`: `{ "op": string, "matches": Array<{ "key": string, "match": boolean }> }`
-- `match-by-key --json` -> `{ "matches": Array<{ "key": string, "match": boolean }> }`
-- `scan --json` -> `{ "findings": Array<{ "key": string, "detections": Array<"jwt"|"url"|"base64"> }> }`
-
 ### Match one candidate against multiple keys
 
 ```bash
@@ -178,6 +166,27 @@ Optionally restrict which keys to scan:
 envsitter scan --file .env --keys-regex "/(JWT|URL)/" --detect jwt,url
 ```
 
+## Output contract (for LLMs)
+
+General rules:
+
+- Never output secret values; treat all values as sensitive.
+- Prefer `--candidate-stdin` over `--candidate` to avoid shell history.
+- Exit codes: `0` match found, `1` no match, `2` error/usage.
+
+JSON outputs:
+
+- `keys --json` -> `{ "keys": string[] }`
+- `fingerprint` -> `{ "key": string, "algorithm": "hmac-sha256", "fingerprint": string, "length": number, "pepperSource": "env"|"file", "pepperFilePath"?: string }`
+- `match --json` (single key) ->
+  - default op (not provided): `{ "key": string, "match": boolean }`
+  - with `--op`: `{ "key": string, "op": string, "match": boolean }`
+- `match --json` (bulk keys / all keys) ->
+  - default op (not provided): `{ "matches": Array<{ "key": string, "match": boolean }> }`
+  - with `--op`: `{ "op": string, "matches": Array<{ "key": string, "match": boolean }> }`
+- `match-by-key --json` -> `{ "matches": Array<{ "key": string, "match": boolean }> }`
+- `scan --json` -> `{ "findings": Array<{ "key": string, "detections": Array<"jwt"|"url"|"base64"> }> }`
+
 ## Library API
 
 ### Basic usage
@@ -192,6 +201,18 @@ const fp = await es.fingerprintKey('OPENAI_API_KEY');
 const match = await es.matchCandidate('OPENAI_API_KEY', 'candidate-secret');
 ```
 
+### Match operators via the library
+
+```ts
+import { EnvSitter } from 'envsitter';
+import type { EnvSitterMatcher } from 'envsitter';
+
+const es = EnvSitter.fromDotenvFile('.env');
+
+const matcher: EnvSitterMatcher = { op: 'partial_match_prefix', prefix: 'sk-' };
+const ok = await es.matchKey('OPENAI_API_KEY', matcher);
+```
+
 ### Bulk matching
 
 ```ts
@@ -201,6 +222,9 @@ const es = EnvSitter.fromDotenvFile('.env');
 
 // One candidate tested against a set of keys
 const matches = await es.matchCandidateBulk(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'], 'candidate-secret');
+
+// One matcher tested against a set of keys
+const prefixMatches = await es.matchKeyBulk(['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'], { op: 'partial_match_prefix', prefix: 'sk-' });
 
 // Candidates-by-key
 const byKey = await es.matchCandidatesByKey({
