@@ -9,6 +9,8 @@ Safely inspect and match `.env` secrets **without ever printing values**.
 - Do bulk matching (one candidate against many keys, or candidates-by-key)
 - Produce deterministic fingerprints for comparisons/auditing
 
+Related: https://github.com/boxpositron/envsitter-guard — an OpenCode plugin that blocks agents/tools from reading or editing sensitive `.env*` files (preventing accidental secret leaks), while still allowing safe inspection via EnvSitter-style tools (keys + deterministic fingerprints; never values).
+
 ## Security model (what this tool does and does not do)
 
 - Values are read in-process for comparisons, but **never returned** by the library API and **never printed** by the CLI.
