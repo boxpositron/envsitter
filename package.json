@@ -1,6 +1,6 @@
 {
   "name": "envsitter",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "type": "module",
   "description": "Safely inspect and match .env secrets without exposing values",
