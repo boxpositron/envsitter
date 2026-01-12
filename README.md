@@ -81,6 +81,62 @@ Exit codes:
 - `1` no match
 - `2` error/usage
 
+### Match operators (for humans)
+
+`envsitter match` supports an `--op` flag.
+
+- Default: `--op is_equal`
+- When `--op is_equal` is used, EnvSitter hashes both the candidate and stored value with the local pepper (HMAC-SHA-256) and compares digests using constant-time equality.
+- Other operators evaluate against the raw value in-process, but still only return booleans/match results (no values are returned or printed).
+
+Operators:
+
+- `exists`: key is present in the source (no candidate required)
+- `is_empty`: value is exactly empty string (no candidate required)
+- `is_equal`: deterministic match against a candidate value (candidate required)
+- `partial_match_prefix`: `value.startsWith(candidate)` (candidate required)
+- `partial_match_suffix`: `value.endsWith(candidate)` (candidate required)
+- `partial_match_regex`: regex test against value (candidate required; candidate is a regex like `"/^sk-/"` or a raw regex body)
+- `is_number`: value parses as a finite number (no candidate required)
+- `is_boolean`: value is `true`/`false` (case-insensitive, whitespace-trimmed) (no candidate required)
+- `is_string`: value is neither `is_number` nor `is_boolean` (no candidate required)
+
+Examples:
+
+```bash
+# Prefix match
+node -e "process.stdout.write('sk-')" \
+  | envsitter match --file .env --key OPENAI_API_KEY --op partial_match_prefix --candidate-stdin
+
+# Regex match (regex literal syntax)
+node -e "process.stdout.write('/^sk-[a-z]+-/i')" \
+  | envsitter match --file .env --key OPENAI_API_KEY --op partial_match_regex --candidate-stdin
+
+# Exists (no candidate)
+envsitter match --file .env --key OPENAI_API_KEY --op exists --json
+```
+
+### Output contract (for LLMs)
+
+General rules:
+
+- Never output secret values; treat all values as sensitive.
+- Prefer `--candidate-stdin` over `--candidate` to avoid shell history.
+- Exit codes: `0` match found, `1` no match, `2` error/usage.
+
+JSON outputs:
+
+- `keys --json` -> `{ "keys": string[] }`
+- `fingerprint` -> `{ "key": string, "algorithm": "hmac-sha256", "fingerprint": string, "length": number, "pepperSource": "env"|"file", "pepperFilePath"?: string }`
+- `match --json` (single key) ->
+  - default op (not provided): `{ "key": string, "match": boolean }`
+  - with `--op`: `{ "key": string, "op": string, "match": boolean }`
+- `match --json` (bulk keys / all keys) ->
+  - default op (not provided): `{ "matches": Array<{ "key": string, "match": boolean }> }`
+  - with `--op`: `{ "op": string, "matches": Array<{ "key": string, "match": boolean }> }`
+- `match-by-key --json` -> `{ "matches": Array<{ "key": string, "match": boolean }> }`
+- `scan --json` -> `{ "findings": Array<{ "key": string, "detections": Array<"jwt"|"url"|"base64"> }> }`
+
 ### Match one candidate against multiple keys
 
 ```bash

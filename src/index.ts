@@ -3,6 +3,7 @@ export {
   type Detection,
   type EnvSitterFingerprint,
   type EnvSitterKeyMatch,
+  type EnvSitterMatcher,
   type ListKeysOptions,
   type MatchOptions,
   type ScanFinding,

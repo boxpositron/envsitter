@@ -52,6 +52,72 @@ test('EnvSitter bulk matching works across keys and by-key candidates', async ()
   ]);
 });
 
+test('EnvSitter matchKey supports matcher operators', async () => {
+  const filePath = await makeTempDotenv(
+    [
+      'EMPTY=',
+      'SPACE=" "',
+      'TOKEN=sk-test-123',
+      'N1=42',
+      'N2=3.14',
+      'N3= -2 ',
+      'B1=true',
+      'B2=FALSE',
+      'S=hello'
+    ].join('\n') + '\n'
+  );
+  const es = EnvSitter.fromDotenvFile(filePath);
+
+  assert.equal(await es.matchKey('TOKEN', { op: 'exists' }), true);
+  assert.equal(await es.matchKey('MISSING', { op: 'exists' }), false);
+
+  assert.equal(await es.matchKey('EMPTY', { op: 'is_empty' }), true);
+  assert.equal(await es.matchKey('SPACE', { op: 'is_empty' }), false);
+
+  assert.equal(await es.matchKey('TOKEN', { op: 'is_equal', candidate: 'sk-test-123' }), true);
+  assert.equal(await es.matchKey('TOKEN', { op: 'is_equal', candidate: 'nope' }), false);
+
+  assert.equal(await es.matchKey('TOKEN', { op: 'partial_match_prefix', prefix: 'sk-' }), true);
+  assert.equal(await es.matchKey('TOKEN', { op: 'partial_match_suffix', suffix: '123' }), true);
+  assert.equal(await es.matchKey('TOKEN', { op: 'partial_match_regex', regex: /^sk-[a-z]+-\d+$/ }), true);
+
+  assert.equal(await es.matchKey('N1', { op: 'is_number' }), true);
+  assert.equal(await es.matchKey('N2', { op: 'is_number' }), true);
+  assert.equal(await es.matchKey('N3', { op: 'is_number' }), true);
+  assert.equal(await es.matchKey('S', { op: 'is_number' }), false);
+
+  assert.equal(await es.matchKey('B1', { op: 'is_boolean' }), true);
+  assert.equal(await es.matchKey('B2', { op: 'is_boolean' }), true);
+  assert.equal(await es.matchKey('N1', { op: 'is_boolean' }), false);
+
+  assert.equal(await es.matchKey('S', { op: 'is_string' }), true);
+  assert.equal(await es.matchKey('N1', { op: 'is_string' }), false);
+  assert.equal(await es.matchKey('B1', { op: 'is_string' }), false);
+});
+
+test('EnvSitter matchKeyBulk supports matcher operators', async () => {
+  const filePath = await makeTempDotenv('K1=V1\nK2=\nK3=123\n');
+  const es = EnvSitter.fromDotenvFile(filePath);
+
+  assert.deepEqual(await es.matchKeyBulk(['K1', 'K2', 'MISSING'], { op: 'exists' }), [
+    { key: 'K1', match: true },
+    { key: 'K2', match: true },
+    { key: 'MISSING', match: false }
+  ]);
+
+  assert.deepEqual(await es.matchKeyBulk(['K1', 'K2', 'K3'], { op: 'is_empty' }), [
+    { key: 'K1', match: false },
+    { key: 'K2', match: true },
+    { key: 'K3', match: false }
+  ]);
+
+  assert.deepEqual(await es.matchKeyBulk(['K1', 'K2', 'K3'], { op: 'is_number' }), [
+    { key: 'K1', match: false },
+    { key: 'K2', match: false },
+    { key: 'K3', match: true }
+  ]);
+});
+
 test('EnvSitter scan detects JWT-like and URL values without exposing them', async () => {
   const jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.sgn';
   const filePath = await makeTempDotenv(`JWT=${jwt}\nURL=https://example.com\nNOISE=hello\n`);

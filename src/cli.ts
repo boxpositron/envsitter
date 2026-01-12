@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { EnvSitter } from './envsitter.js';
+import { EnvSitter, type EnvSitterMatcher } from './envsitter.js';
 
 type PepperCliOptions = {
   pepperFile?: string;
@@ -40,6 +40,35 @@ async function readStdinText(): Promise<string> {
 function requireValue<T>(value: T | undefined, message: string): T {
   if (value === undefined) throw new Error(message);
   return value;
+}
+
+function parseMatcher(op: string, candidate: string | undefined): EnvSitterMatcher {
+  if (op === 'exists') return { op: 'exists' };
+  if (op === 'is_empty') return { op: 'is_empty' };
+  if (op === 'is_number') return { op: 'is_number' };
+  if (op === 'is_string') return { op: 'is_string' };
+  if (op === 'is_boolean') return { op: 'is_boolean' };
+
+  if (op === 'is_equal') {
+    return { op: 'is_equal', candidate: requireValue(candidate, 'Provide --candidate or --candidate-stdin') };
+  }
+
+  if (op === 'partial_match_prefix') {
+    return { op: 'partial_match_prefix', prefix: requireValue(candidate, 'Provide --candidate or --candidate-stdin') };
+  }
+
+  if (op === 'partial_match_suffix') {
+    return { op: 'partial_match_suffix', suffix: requireValue(candidate, 'Provide --candidate or --candidate-stdin') };
+  }
+
+  if (op === 'partial_match_regex') {
+    const raw = requireValue(candidate, 'Provide --candidate or --candidate-stdin');
+    return { op: 'partial_match_regex', regex: parseRegex(raw) };
+  }
+
+  throw new Error(
+    `Unknown --op: ${op}. Expected one of: exists,is_empty,is_equal,partial_match_regex,partial_match_prefix,partial_match_suffix,is_number,is_string,is_boolean`
+  );
 }
 
 function parseArgs(argv: string[]): { cmd: string; args: string[]; flags: Record<string, string | boolean> } {
@@ -89,7 +118,7 @@ function printHelp(): void {
       'Commands:',
       '  keys --file <path> [--filter-regex <re>]',
       '  fingerprint --file <path> --key <KEY>',
-      '  match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) (--candidate <value> | --candidate-stdin)',
+      '  match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]',
       '  match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)',
       '  scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]',
       '',
@@ -97,6 +126,7 @@ function printHelp(): void {
       '  --pepper-file <path>   Defaults to .envsitter/pepper (auto-created)',
       '',
       'Notes:',
+      '  match --op defaults to is_equal. Ops: exists,is_empty,is_equal,partial_match_regex,partial_match_prefix,partial_match_suffix,is_number,is_string,is_boolean',
       '  Candidate values passed via argv may end up in shell history. Prefer --candidate-stdin.',
       ''
     ].join('\n')
@@ -146,32 +176,37 @@ async function run(): Promise<number> {
   }
 
   if (cmd === 'match') {
-    const candidateArg = typeof flags['candidate'] === 'string' ? flags['candidate'] : undefined;
-    const candidate = flags['candidate-stdin'] === true ? (await readStdinText()).trimEnd() : candidateArg;
-    const candidateValue = requireValue(candidate, 'Provide --candidate or --candidate-stdin');
+    const op = typeof flags['op'] === 'string' ? flags['op'] : 'is_equal';
 
+    const candidateArg = typeof flags['candidate'] === 'string' ? flags['candidate'] : undefined;
+    const candidateStdin = flags['candidate-stdin'] === true ? (await readStdinText()).trimEnd() : undefined;
+    const candidate = candidateStdin ?? candidateArg;
+
+    const matcher = parseMatcher(op, candidate);
     const pepperOptions = pepperMatchOptions(pepper?.pepperFilePath);
 
     const key = typeof flags['key'] === 'string' ? flags['key'] : undefined;
     const keysCsv = typeof flags['keys'] === 'string' ? flags['keys'] : undefined;
     const allKeys = flags['all-keys'] === true;
 
+    const includeOp = typeof flags['op'] === 'string';
+
     if (key) {
-      const match = await envsitter.matchCandidate(key, candidateValue, pepperOptions);
-      if (flags['json'] === true) jsonOut({ key, match });
+      const match = await envsitter.matchKey(key, matcher, pepperOptions);
+      if (flags['json'] === true) jsonOut(includeOp ? { key, op: matcher.op, match } : { key, match });
       return match ? 0 : 1;
     }
 
     if (keysCsv) {
       const keys = parseList(keysCsv);
-      const results = await envsitter.matchCandidateBulk(keys, candidateValue, pepperOptions);
-      if (flags['json'] === true) jsonOut({ matches: results });
+      const results = await envsitter.matchKeyBulk(keys, matcher, pepperOptions);
+      if (flags['json'] === true) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
       return results.some((r) => r.match) ? 0 : 1;
     }
 
     if (allKeys) {
-      const results = await envsitter.matchCandidateAll(candidateValue, pepperOptions);
-      if (flags['json'] === true) jsonOut({ matches: results });
+      const results = await envsitter.matchKeyAll(matcher, pepperOptions);
+      if (flags['json'] === true) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
       return results.some((r) => r.match) ? 0 : 1;
     }
 

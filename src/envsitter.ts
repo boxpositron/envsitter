@@ -27,6 +27,17 @@ export type EnvSitterKeyMatch = {
   match: boolean;
 };
 
+export type EnvSitterMatcher =
+  | { op: 'exists' }
+  | { op: 'is_empty' }
+  | { op: 'is_equal'; candidate: string }
+  | { op: 'partial_match_regex'; regex: RegExp }
+  | { op: 'partial_match_prefix'; prefix: string }
+  | { op: 'partial_match_suffix'; suffix: string }
+  | { op: 'is_number' }
+  | { op: 'is_string' }
+  | { op: 'is_boolean' };
+
 export type Detection = 'jwt' | 'url' | 'base64';
 
 export type ScanFinding = {
@@ -87,48 +98,92 @@ export class EnvSitter {
     };
   }
 
-  async matchCandidate(key: string, candidate: string, options: MatchOptions = {}): Promise<boolean> {
+  async matchKey(key: string, matcher: EnvSitterMatcher, options: MatchOptions = {}): Promise<boolean> {
     const snapshot = await this.source.load();
+
+    if (matcher.op === 'exists') return snapshot.values.has(key);
+
     const value = snapshot.values.get(key);
     if (value === undefined) return false;
 
-    const pepper = await resolvePepper(options.pepper);
-    const candidateFp = fingerprintValueHmacSha256(candidate, pepper.pepperBytes);
-    const valueFp = fingerprintValueHmacSha256(value, pepper.pepperBytes);
+    if (matcher.op === 'is_equal') {
+      const pepper = await resolvePepper(options.pepper);
+      const candidateFp = fingerprintValueHmacSha256(matcher.candidate, pepper.pepperBytes);
+      const valueFp = fingerprintValueHmacSha256(value, pepper.pepperBytes);
 
-    const a = Buffer.from(candidateFp.digestBytes);
-    const b = Buffer.from(valueFp.digestBytes);
+      const a = Buffer.from(candidateFp.digestBytes);
+      const b = Buffer.from(valueFp.digestBytes);
 
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+      if (a.length !== b.length) return false;
+      return timingSafeEqual(a, b);
+    }
+
+    return matchValue(value, matcher);
   }
 
-  async matchCandidateBulk(keys: readonly string[], candidate: string, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
+  async matchKeyBulk(
+    keys: readonly string[],
+    matcher: EnvSitterMatcher,
+    options: MatchOptions = {}
+  ): Promise<EnvSitterKeyMatch[]> {
     const snapshot = await this.source.load();
-    const pepper = await resolvePepper(options.pepper);
-    const candidateFp = fingerprintValueHmacSha256(candidate, pepper.pepperBytes);
-    const candidateBuf = Buffer.from(candidateFp.digestBytes);
+
+    if (matcher.op === 'is_equal') {
+      const pepper = await resolvePepper(options.pepper);
+      const candidateFp = fingerprintValueHmacSha256(matcher.candidate, pepper.pepperBytes);
+      const candidateBuf = Buffer.from(candidateFp.digestBytes);
+
+      const results: EnvSitterKeyMatch[] = [];
+      for (const key of keys) {
+        const value = snapshot.values.get(key);
+        if (value === undefined) {
+          results.push({ key, match: false });
+          continue;
+        }
+
+        const valueFp = fingerprintValueHmacSha256(value, pepper.pepperBytes);
+        const valueBuf = Buffer.from(valueFp.digestBytes);
+        const match = valueBuf.length === candidateBuf.length && timingSafeEqual(valueBuf, candidateBuf);
+        results.push({ key, match });
+      }
+
+      return results;
+    }
 
     const results: EnvSitterKeyMatch[] = [];
     for (const key of keys) {
+      if (matcher.op === 'exists') {
+        results.push({ key, match: snapshot.values.has(key) });
+        continue;
+      }
+
       const value = snapshot.values.get(key);
       if (value === undefined) {
         results.push({ key, match: false });
         continue;
       }
 
-      const valueFp = fingerprintValueHmacSha256(value, pepper.pepperBytes);
-      const valueBuf = Buffer.from(valueFp.digestBytes);
-      const match = valueBuf.length === candidateBuf.length && timingSafeEqual(valueBuf, candidateBuf);
-      results.push({ key, match });
+      results.push({ key, match: matchValue(value, matcher) });
     }
 
     return results;
   }
 
-  async matchCandidateAll(candidate: string, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
+  async matchKeyAll(matcher: EnvSitterMatcher, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
     const keys = await this.listKeys();
-    return this.matchCandidateBulk(keys, candidate, options);
+    return this.matchKeyBulk(keys, matcher, options);
+  }
+
+  async matchCandidate(key: string, candidate: string, options: MatchOptions = {}): Promise<boolean> {
+    return this.matchKey(key, { op: 'is_equal', candidate }, options);
+  }
+
+  async matchCandidateBulk(keys: readonly string[], candidate: string, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
+    return this.matchKeyBulk(keys, { op: 'is_equal', candidate }, options);
+  }
+
+  async matchCandidateAll(candidate: string, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
+    return this.matchKeyAll({ op: 'is_equal', candidate }, options);
   }
 
   async matchCandidatesByKey(candidatesByKey: Record<string, string>, options: MatchOptions = {}): Promise<EnvSitterKeyMatch[]> {
@@ -174,6 +229,35 @@ export class EnvSitter {
 
     return findings;
   }
+}
+
+function matchValue(value: string, matcher: Exclude<EnvSitterMatcher, { op: 'exists' } | { op: 'is_equal'; candidate: string }>): boolean {
+  if (matcher.op === 'is_empty') return value.length === 0;
+
+  if (matcher.op === 'partial_match_prefix') return value.startsWith(matcher.prefix);
+  if (matcher.op === 'partial_match_suffix') return value.endsWith(matcher.suffix);
+  if (matcher.op === 'partial_match_regex') return matcher.regex.test(value);
+
+  if (matcher.op === 'is_number') return isNumberLike(value);
+  if (matcher.op === 'is_boolean') return isBooleanLike(value);
+  if (matcher.op === 'is_string') return !isNumberLike(value) && !isBooleanLike(value);
+
+  const neverMatcher: never = matcher;
+  throw new Error(`Unhandled matcher: ${JSON.stringify(neverMatcher)}`);
+}
+
+function isNumberLike(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return false;
+
+  if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(trimmed)) return false;
+  const n = Number(trimmed);
+  return Number.isFinite(n);
+}
+
+function isBooleanLike(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === 'true' || trimmed === 'false';
 }
 
 function looksLikeJwt(value: string): boolean {
