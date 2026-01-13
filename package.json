@@ -1,9 +1,23 @@
 {
   "name": "envsitter",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": false,
   "type": "module",
   "description": "Safely inspect and match .env secrets without exposing values",
+  "keywords": [
+    "dotenv",
+    "env",
+    "secrets",
+    "secret",
+    "security",
+    "hmac",
+    "fingerprint",
+    "audit",
+    "cli",
+    "devops",
+    "configuration",
+    "config"
+  ],
   "license": "MIT",
   "bin": {
     "envsitter": "dist/cli.js"

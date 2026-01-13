@@ -56,6 +56,16 @@ Commands:
 - `match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]`
 - `match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)`
 - `scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]`
+- `validate --file <path>`
+- `copy --from <path> --to <path> [--keys <K1,K2>] [--include-regex <re>] [--exclude-regex <re>] [--rename <A=B,C=D>] [--on-conflict error|skip|overwrite] [--write]`
+- `format --file <path> [--mode sections|global] [--sort alpha|none] [--write]`
+- `reorder --file <path> [--mode sections|global] [--sort alpha|none] [--write]`
+- `annotate --file <path> --key <KEY> --comment <text> [--line <n>] [--write]`
+
+Notes for file operations:
+
+- Commands that modify files (`copy`, `format`/`reorder`, `annotate`) are dry-run unless `--write` is provided.
+- These commands never print secret values; output includes keys, booleans, and line numbers only.
 
 ### List keys
 
@@ -166,6 +176,47 @@ Optionally restrict which keys to scan:
 envsitter scan --file .env --keys-regex "/(JWT|URL)/" --detect jwt,url
 ```
 
+### Validate dotenv syntax
+
+```bash
+envsitter validate --file .env
+envsitter validate --file .env --json
+```
+
+### Copy keys between env files (production → staging)
+
+Dry-run (no file is modified):
+
+```bash
+envsitter copy --from .env.production --to .env.staging --keys API_URL,REDIS_URL --json
+```
+
+Apply changes:
+
+```bash
+envsitter copy --from .env.production --to .env.staging --keys API_URL,REDIS_URL --on-conflict overwrite --write --json
+```
+
+Rename while copying:
+
+```bash
+envsitter copy --from .env.production --to .env.staging --keys DATABASE_URL --rename DATABASE_URL=STAGING_DATABASE_URL --write
+```
+
+### Annotate keys with comments
+
+```bash
+envsitter annotate --file .env --key DATABASE_URL --comment "prod only" --write
+```
+
+### Reorder/format env files
+
+```bash
+envsitter format --file .env --mode sections --sort alpha --write
+# alias:
+envsitter reorder --file .env --mode sections --sort alpha --write
+```
+
 ## Output contract (for LLMs)
 
 General rules:
@@ -186,6 +237,10 @@ JSON outputs:
   - with `--op`: `{ "op": string, "matches": Array<{ "key": string, "match": boolean }> }`
 - `match-by-key --json` -> `{ "matches": Array<{ "key": string, "match": boolean }> }`
 - `scan --json` -> `{ "findings": Array<{ "key": string, "detections": Array<"jwt"|"url"|"base64"> }> }`
+- `validate --json` -> `{ "ok": boolean, "issues": Array<{ "line": number, "column": number, "message": string }> }`
+- `copy --json` -> `{ "from": string, "to": string, "onConflict": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": Array<...> }`
+- `format --json` / `reorder --json` -> `{ "file": string, "mode": string, "sort": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...> }`
+- `annotate --json` -> `{ "file": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { ... } }`
 
 ## Library API
 
@@ -199,6 +254,25 @@ const es = EnvSitter.fromDotenvFile('.env');
 const keys = await es.listKeys();
 const fp = await es.fingerprintKey('OPENAI_API_KEY');
 const match = await es.matchCandidate('OPENAI_API_KEY', 'candidate-secret');
+```
+
+### File operations via the library
+
+```ts
+import { annotateEnvFile, copyEnvFileKeys, formatEnvFile, validateEnvFile } from 'envsitter';
+
+await validateEnvFile('.env');
+
+await copyEnvFileKeys({
+  from: '.env.production',
+  to: '.env.staging',
+  keys: ['API_URL', 'REDIS_URL'],
+  onConflict: 'overwrite',
+  write: true
+});
+
+await annotateEnvFile({ file: '.env', key: 'DATABASE_URL', comment: 'prod only', write: true });
+await formatEnvFile({ file: '.env', mode: 'sections', sort: 'alpha', write: true });
 ```
 
 ### Match operators via the library

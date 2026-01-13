@@ -11,3 +11,14 @@ export {
 } from './envsitter.js';
 
 export { type PepperOptions, resolvePepper } from './pepper.js';
+
+export {
+  annotateEnvFile,
+  copyEnvFileKeys,
+  formatEnvFile,
+  validateEnvFile,
+  type AnnotateEnvFileResult,
+  type CopyEnvFilesResult,
+  type FormatEnvFileResult,
+  type ValidateEnvFileResult
+} from './file-ops.js';

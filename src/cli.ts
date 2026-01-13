@@ -1,15 +1,9 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
 import { EnvSitter, type EnvSitterMatcher } from './envsitter.js';
+import { annotateDotenvKey, copyDotenvKeys, formatDotenv, validateDotenv } from './dotenv/edit.js';
+import { readTextFileOrEmpty, writeTextFileAtomic } from './dotenv/io.js';
 
-type PepperCliOptions = {
-  pepperFile?: string;
-};
-
-type CommonCliOptions = {
-  file?: string;
-  pepper?: PepperCliOptions;
-  json?: boolean;
-};
 
 function parseRegex(input: string): RegExp {
   const trimmed = input.trim();
@@ -121,6 +115,11 @@ function printHelp(): void {
       '  match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]',
       '  match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)',
       '  scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]',
+      '  validate --file <path>',
+      '  copy --from <path> --to <path> [--keys <K1,K2>] [--include-regex <re>] [--exclude-regex <re>] [--rename <A=B,C=D>] [--on-conflict error|skip|overwrite] [--write]',
+      '  format --file <path> [--mode sections|global] [--sort alpha|none] [--write]',
+      '  reorder --file <path> [--mode sections|global] [--sort alpha|none] [--write]',
+      '  annotate --file <path> --key <KEY> --comment <text> [--line <n>] [--write]',
       '',
       'Pepper options:',
       '  --pepper-file <path>   Defaults to .envsitter/pepper (auto-created)',
@@ -154,6 +153,126 @@ async function run(): Promise<number> {
     return 0;
   }
 
+  const json = flags['json'] === true;
+
+  if (cmd === 'validate') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const contents = await readFile(file, 'utf8');
+    const result = validateDotenv(contents);
+
+    if (json) jsonOut(result);
+    else {
+      if (result.ok) process.stdout.write('OK\n');
+      else {
+        for (const issue of result.issues) {
+          process.stdout.write(`L${issue.line}:C${issue.column}: ${issue.message}\n`);
+        }
+      }
+    }
+
+    return result.ok ? 0 : 2;
+  }
+
+  if (cmd === 'copy') {
+    const from = requireValue(typeof flags['from'] === 'string' ? flags['from'] : undefined, '--from is required');
+    const to = requireValue(typeof flags['to'] === 'string' ? flags['to'] : undefined, '--to is required');
+
+    const onConflictRaw = typeof flags['on-conflict'] === 'string' ? flags['on-conflict'] : 'error';
+    const onConflict = onConflictRaw === 'skip' || onConflictRaw === 'overwrite' ? onConflictRaw : 'error';
+
+    const keysRaw = typeof flags['keys'] === 'string' ? flags['keys'] : undefined;
+    const includeRaw = typeof flags['include-regex'] === 'string' ? flags['include-regex'] : undefined;
+    const excludeRaw = typeof flags['exclude-regex'] === 'string' ? flags['exclude-regex'] : undefined;
+    const renameRaw = typeof flags['rename'] === 'string' ? flags['rename'] : undefined;
+
+    const sourceContents = await readFile(from, 'utf8');
+    const targetContents = await readTextFileOrEmpty(to);
+
+    const result = copyDotenvKeys({
+      sourceContents,
+      targetContents,
+      ...(keysRaw ? { keys: parseList(keysRaw) } : {}),
+      ...(includeRaw ? { include: parseRegex(includeRaw) } : {}),
+      ...(excludeRaw ? { exclude: parseRegex(excludeRaw) } : {}),
+      ...(renameRaw ? { rename: renameRaw } : {}),
+      onConflict
+    });
+
+    const conflicts = result.plan.filter((p) => p.action === 'conflict');
+    const willWrite = flags['write'] === true;
+
+    if (willWrite && conflicts.length === 0 && result.hasChanges) {
+      await writeTextFileAtomic(to, result.output);
+    }
+
+    if (json) {
+      jsonOut({
+        from,
+        to,
+        onConflict,
+        willWrite,
+        wrote: willWrite && conflicts.length === 0 && result.hasChanges,
+        hasChanges: result.hasChanges,
+        issues: result.issues,
+        plan: result.plan
+      });
+    } else {
+      for (const p of result.plan) {
+        const fromAt = p.fromLine ? ` L${p.fromLine}` : '';
+        const toAt = p.toLine ? ` -> L${p.toLine}` : '';
+        process.stdout.write(`${p.action}: ${p.fromKey} -> ${p.toKey}${fromAt}${toAt}\n`);
+      }
+      if (conflicts.length > 0) process.stdout.write('Conflicts found. Use --on-conflict overwrite|skip or resolve manually.\n');
+    }
+
+    return conflicts.length > 0 ? 2 : 0;
+  }
+
+  if (cmd === 'format' || cmd === 'reorder') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const modeRaw = typeof flags['mode'] === 'string' ? flags['mode'] : 'sections';
+    const sortRaw = typeof flags['sort'] === 'string' ? flags['sort'] : 'alpha';
+
+    const mode = modeRaw === 'global' ? 'global' : 'sections';
+    const sort = sortRaw === 'none' ? 'none' : 'alpha';
+
+    const contents = await readFile(file, 'utf8');
+    const result = formatDotenv({ contents, mode, sort });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, mode, sort, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues });
+    } else {
+      process.stdout.write(result.hasChanges ? 'CHANGED\n' : 'NO_CHANGES\n');
+    }
+
+    return result.issues.length > 0 ? 2 : 0;
+  }
+
+  if (cmd === 'annotate') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const key = requireValue(typeof flags['key'] === 'string' ? flags['key'] : undefined, '--key is required');
+    const comment = requireValue(typeof flags['comment'] === 'string' ? flags['comment'] : undefined, '--comment is required');
+    const lineRaw = typeof flags['line'] === 'string' ? flags['line'] : undefined;
+    const line = lineRaw ? Number(lineRaw) : undefined;
+
+    const contents = await readFile(file, 'utf8');
+    const result = annotateDotenvKey({ contents, key, comment, ...(line ? { line } : {}) });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+    } else {
+      process.stdout.write(`${result.plan.action}: ${result.plan.key}\n`);
+    }
+
+    return result.issues.length > 0 ? 2 : 0;
+  }
+
   const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
   const pepper = getPepperOptions(flags);
   const envsitter = EnvSitter.fromDotenvFile(file);
@@ -163,7 +282,7 @@ async function run(): Promise<number> {
     const filter = filterRegexRaw ? parseRegex(filterRegexRaw) : undefined;
 
     const keys = await envsitter.listKeys(filter ? { filter } : {});
-    if (flags['json'] === true) jsonOut({ keys });
+    if (json) jsonOut({ keys });
     else process.stdout.write(`${keys.join('\n')}\n`);
     return 0;
   }
@@ -193,20 +312,20 @@ async function run(): Promise<number> {
 
     if (key) {
       const match = await envsitter.matchKey(key, matcher, pepperOptions);
-      if (flags['json'] === true) jsonOut(includeOp ? { key, op: matcher.op, match } : { key, match });
+      if (json) jsonOut(includeOp ? { key, op: matcher.op, match } : { key, match });
       return match ? 0 : 1;
     }
 
     if (keysCsv) {
       const keys = parseList(keysCsv);
       const results = await envsitter.matchKeyBulk(keys, matcher, pepperOptions);
-      if (flags['json'] === true) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
+      if (json) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
       return results.some((r) => r.match) ? 0 : 1;
     }
 
     if (allKeys) {
       const results = await envsitter.matchKeyAll(matcher, pepperOptions);
-      if (flags['json'] === true) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
+      if (json) jsonOut(includeOp ? { op: matcher.op, matches: results } : { matches: results });
       return results.some((r) => r.match) ? 0 : 1;
     }
 
