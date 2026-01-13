@@ -4,6 +4,10 @@
   "private": false,
   "type": "module",
   "description": "Safely inspect and match .env secrets without exposing values",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boxpositron/envsitter.git"
+  },
   "keywords": [
     "dotenv",
     "env",
