@@ -181,4 +181,12 @@ test('isExampleEnvFile detects example/template files', () => {
   assert.equal(isExampleEnvFile('.env.defaults'), true);
   assert.equal(isExampleEnvFile('/path/to/.env.example'), true);
   assert.equal(isExampleEnvFile('.env.EXAMPLE'), true);
+
+  assert.equal(isExampleEnvFile('api.env'), false);
+  assert.equal(isExampleEnvFile('database.env'), false);
+  assert.equal(isExampleEnvFile('api.env.local'), false);
+  assert.equal(isExampleEnvFile('api.env.example'), true);
+  assert.equal(isExampleEnvFile('database.env.sample'), true);
+  assert.equal(isExampleEnvFile('config.env.template'), true);
+  assert.equal(isExampleEnvFile('/path/to/api.env.example'), true);
 });
