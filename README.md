@@ -49,7 +49,25 @@ The pepper file is created with mode `0600` when possible, and `.envsitter/` is 
 
 ## CLI usage
 
-Commands:
+### Quick reference
+
+| Command | Description |
+|---------|-------------|
+| `keys` | List all keys in an env file |
+| `fingerprint` | Get deterministic fingerprint for a key |
+| `match` | Match candidate value(s) against key(s) |
+| `match-by-key` | Bulk match candidates by key |
+| `scan` | Detect value shapes (JWT, URL, base64) |
+| `validate` | Check dotenv syntax |
+| `copy` | Copy keys between env files |
+| `format` / `reorder` | Sort and organize env files |
+| `annotate` | Add comments to keys |
+| `add` | Add new key (fails if exists) |
+| `set` | Create or update key |
+| `unset` | Set key to empty value |
+| `delete` | Remove key(s) from file |
+
+### Commands
 
 - `keys --file <path> [--filter-regex <re>]`
 - `fingerprint --file <path> --key <KEY>`
@@ -70,7 +88,9 @@ Notes for file operations:
 
 - Commands that modify files (`copy`, `format`/`reorder`, `annotate`, `add`, `set`, `unset`, `delete`) are dry-run unless `--write` is provided.
 - These commands never print secret values; output includes keys, booleans, and line numbers only.
-- When targeting example files (`.env.example`, `.env.sample`, `.env.template`), a warning is emitted. Use `--no-example-warning` to suppress.
+- When targeting example files (`.env.example`, `.env.sample`, `.env.template`, `.env.dist`, `.env.default`), a warning is emitted. Use `--no-example-warning` to suppress.
+- Non-standard env file names are fully supported (e.g., `api.env`, `database.env`, `config.env.local`).
+- Values with special characters (spaces, `#`, quotes, newlines) are automatically double-quoted with proper escaping.
 
 ### List keys
 
@@ -333,6 +353,18 @@ await unsetEnvFileKey({ file: '.env', key: 'OLD_KEY', write: true });
 
 // Delete keys
 await deleteEnvFileKeys({ file: '.env', keys: ['DEPRECATED', 'UNUSED'], write: true });
+```
+
+### Utility functions
+
+```ts
+import { isExampleEnvFile } from 'envsitter';
+
+// Detect example/template env files
+isExampleEnvFile('.env.example');      // true
+isExampleEnvFile('api.env.sample');    // true
+isExampleEnvFile('.env');              // false
+isExampleEnvFile('api.env');           // false
 ```
 
 ### Match operators via the library
