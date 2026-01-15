@@ -13,12 +13,24 @@ export {
 export { type PepperOptions, resolvePepper } from './pepper.js';
 
 export {
+  addEnvFileKey,
   annotateEnvFile,
   copyEnvFileKeys,
+  deleteEnvFileKeys,
   formatEnvFile,
+  setEnvFileKey,
+  unsetEnvFileKey,
   validateEnvFile,
+  type AddEnvFileKeyResult,
   type AnnotateEnvFileResult,
   type CopyEnvFilesResult,
+  type DeleteEnvFileKeysResult,
   type FormatEnvFileResult,
+  type KeyMutationAction,
+  type KeyMutationPlanItem,
+  type SetEnvFileKeyResult,
+  type UnsetEnvFileKeyResult,
   type ValidateEnvFileResult
 } from './file-ops.js';
+
+export { isExampleEnvFile } from './dotenv/utils.js';

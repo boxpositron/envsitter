@@ -1,4 +1,5 @@
 import { parseDotenvDocument, stringifyDotenvDocument, type DotenvParsedAssignment, type DotenvIssue } from './document.js';
+import { buildAssignmentLine } from './utils.js';
 
 export type DotenvWriteMode = 'dry-run' | 'write';
 
@@ -311,4 +312,220 @@ export type ValidateDotenvResult = {
 export function validateDotenv(contents: string): ValidateDotenvResult {
   const doc = parseDotenvDocument(contents);
   return { issues: doc.issues, ok: doc.issues.length === 0 };
+}
+
+export type KeyMutationAction = 'added' | 'updated' | 'unset' | 'deleted' | 'key_exists' | 'not_found' | 'no_change';
+
+export type KeyMutationPlanItem = {
+  key: string;
+  action: KeyMutationAction;
+  line?: number;
+};
+
+export type AddDotenvKeyResult = {
+  output: string;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+  hasChanges: boolean;
+};
+
+export function addDotenvKey(options: { contents: string; key: string; value: string }): AddDotenvKeyResult {
+  const doc = parseDotenvDocument(options.contents);
+  const issues: DotenvIssue[] = [...doc.issues];
+  const assignments = listAssignments(doc.lines);
+
+  const existing = lastAssignmentForKey(assignments, options.key);
+  if (existing) {
+    return {
+      output: options.contents,
+      issues,
+      plan: { key: options.key, action: 'key_exists', line: existing.line },
+      hasChanges: false
+    };
+  }
+
+  const newLine = buildAssignmentLine(options.key, options.value);
+  const lastLine = doc.lines.length > 0 ? Math.max(...doc.lines.map((l) => l.line)) : 0;
+
+  doc.lines.push({
+    kind: 'assignment',
+    line: lastLine + 1,
+    raw: newLine,
+    leadingWhitespace: '',
+    exported: false,
+    key: options.key,
+    keyColumn: 1,
+    beforeEqWhitespace: '',
+    afterEqRaw: newLine.slice(options.key.length + 1),
+    quote: 'none',
+    value: options.value
+  });
+
+  return {
+    output: stringifyDotenvDocument(doc),
+    issues,
+    plan: { key: options.key, action: 'added', line: lastLine + 1 },
+    hasChanges: true
+  };
+}
+
+export type SetDotenvKeyResult = {
+  output: string;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+  hasChanges: boolean;
+};
+
+export function setDotenvKey(options: { contents: string; key: string; value: string }): SetDotenvKeyResult {
+  const doc = parseDotenvDocument(options.contents);
+  const issues: DotenvIssue[] = [...doc.issues];
+  const assignments = listAssignments(doc.lines);
+
+  const existing = lastAssignmentForKey(assignments, options.key);
+
+  if (!existing) {
+    const newLine = buildAssignmentLine(options.key, options.value);
+    const lastLine = doc.lines.length > 0 ? Math.max(...doc.lines.map((l) => l.line)) : 0;
+
+    doc.lines.push({
+      kind: 'assignment',
+      line: lastLine + 1,
+      raw: newLine,
+      leadingWhitespace: '',
+      exported: false,
+      key: options.key,
+      keyColumn: 1,
+      beforeEqWhitespace: '',
+      afterEqRaw: newLine.slice(options.key.length + 1),
+      quote: 'none',
+      value: options.value
+    });
+
+    return {
+      output: stringifyDotenvDocument(doc),
+      issues,
+      plan: { key: options.key, action: 'added', line: lastLine + 1 },
+      hasChanges: true
+    };
+  }
+
+  if (existing.value === options.value) {
+    return {
+      output: options.contents,
+      issues,
+      plan: { key: options.key, action: 'no_change', line: existing.line },
+      hasChanges: false
+    };
+  }
+
+  const newRaw = `${existing.leadingWhitespace}${existing.exported ? 'export ' : ''}${options.key}${existing.beforeEqWhitespace}=${buildAssignmentLine('', options.value).slice(1)}`;
+
+  for (let i = doc.lines.length - 1; i >= 0; i--) {
+    const l = doc.lines[i];
+    if (l?.kind === 'assignment' && l.key === options.key && l.line === existing.line) {
+      doc.lines[i] = { ...l, raw: newRaw, value: options.value, afterEqRaw: newRaw.slice(newRaw.indexOf('=') + 1) };
+      break;
+    }
+  }
+
+  return {
+    output: stringifyDotenvDocument(doc),
+    issues,
+    plan: { key: options.key, action: 'updated', line: existing.line },
+    hasChanges: true
+  };
+}
+
+export type UnsetDotenvKeyResult = {
+  output: string;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+  hasChanges: boolean;
+};
+
+export function unsetDotenvKey(options: { contents: string; key: string }): UnsetDotenvKeyResult {
+  const doc = parseDotenvDocument(options.contents);
+  const issues: DotenvIssue[] = [...doc.issues];
+  const assignments = listAssignments(doc.lines);
+
+  const existing = lastAssignmentForKey(assignments, options.key);
+
+  if (!existing) {
+    return {
+      output: options.contents,
+      issues,
+      plan: { key: options.key, action: 'not_found' },
+      hasChanges: false
+    };
+  }
+
+  if (existing.value === '') {
+    return {
+      output: options.contents,
+      issues,
+      plan: { key: options.key, action: 'no_change', line: existing.line },
+      hasChanges: false
+    };
+  }
+
+  const newRaw = `${existing.leadingWhitespace}${existing.exported ? 'export ' : ''}${options.key}${existing.beforeEqWhitespace}=`;
+
+  for (let i = doc.lines.length - 1; i >= 0; i--) {
+    const l = doc.lines[i];
+    if (l?.kind === 'assignment' && l.key === options.key && l.line === existing.line) {
+      doc.lines[i] = { ...l, raw: newRaw, value: '', afterEqRaw: '', quote: 'none' };
+      break;
+    }
+  }
+
+  return {
+    output: stringifyDotenvDocument(doc),
+    issues,
+    plan: { key: options.key, action: 'unset', line: existing.line },
+    hasChanges: true
+  };
+}
+
+export type DeleteDotenvKeysResult = {
+  output: string;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem[];
+  hasChanges: boolean;
+};
+
+export function deleteDotenvKeys(options: { contents: string; keys: readonly string[] }): DeleteDotenvKeysResult {
+  const doc = parseDotenvDocument(options.contents);
+  const issues: DotenvIssue[] = [...doc.issues];
+  const assignments = listAssignments(doc.lines);
+
+  const plan: KeyMutationPlanItem[] = [];
+  const keysToDelete = new Set<string>();
+  const linesToDelete = new Set<number>();
+
+  for (const key of options.keys) {
+    const existing = lastAssignmentForKey(assignments, key);
+    if (!existing) {
+      plan.push({ key, action: 'not_found' });
+      continue;
+    }
+    keysToDelete.add(key);
+    linesToDelete.add(existing.line);
+    plan.push({ key, action: 'deleted', line: existing.line });
+  }
+
+  if (linesToDelete.size === 0) {
+    return { output: options.contents, issues, plan, hasChanges: false };
+  }
+
+  doc.lines = doc.lines.filter((l) => {
+    if (l.kind !== 'assignment') return true;
+    return !linesToDelete.has(l.line);
+  });
+
+  return {
+    output: stringifyDotenvDocument(doc),
+    issues,
+    plan,
+    hasChanges: true
+  };
 }

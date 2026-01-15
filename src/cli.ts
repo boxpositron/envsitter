@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { EnvSitter, type EnvSitterMatcher } from './envsitter.js';
-import { annotateDotenvKey, copyDotenvKeys, formatDotenv, validateDotenv } from './dotenv/edit.js';
+import { addDotenvKey, annotateDotenvKey, copyDotenvKeys, deleteDotenvKeys, formatDotenv, setDotenvKey, unsetDotenvKey, validateDotenv } from './dotenv/edit.js';
 import { readTextFileOrEmpty, writeTextFileAtomic } from './dotenv/io.js';
+import { isExampleEnvFile } from './dotenv/utils.js';
 
 
 function parseRegex(input: string): RegExp {
@@ -104,6 +105,12 @@ function jsonOut(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function warnIfExampleFile(file: string, noWarn: boolean): void {
+  if (!noWarn && isExampleEnvFile(file)) {
+    process.stderr.write(`Warning: ${file} appears to be an example/template file. Use --no-example-warning to suppress.\n`);
+  }
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -120,13 +127,18 @@ function printHelp(): void {
       '  format --file <path> [--mode sections|global] [--sort alpha|none] [--write]',
       '  reorder --file <path> [--mode sections|global] [--sort alpha|none] [--write]',
       '  annotate --file <path> --key <KEY> --comment <text> [--line <n>] [--write]',
+      '  add --file <path> --key <KEY> [--value <v> | --value-stdin] [--write]',
+      '  set --file <path> --key <KEY> [--value <v> | --value-stdin] [--write]',
+      '  unset --file <path> --key <KEY> [--write]',
+      '  delete --file <path> (--key <KEY> | --keys <K1,K2>) [--write]',
       '',
       'Pepper options:',
       '  --pepper-file <path>   Defaults to .envsitter/pepper (auto-created)',
       '',
       'Notes:',
       '  match --op defaults to is_equal. Ops: exists,is_empty,is_equal,partial_match_regex,partial_match_prefix,partial_match_suffix,is_number,is_string,is_boolean',
-      '  Candidate values passed via argv may end up in shell history. Prefer --candidate-stdin.',
+      '  Values passed via argv may end up in shell history. Prefer --value-stdin or --candidate-stdin.',
+      '  Mutation commands (add, set, unset, delete) are dry-run unless --write is provided.',
       ''
     ].join('\n')
   );
@@ -271,6 +283,106 @@ async function run(): Promise<number> {
     }
 
     return result.issues.length > 0 ? 2 : 0;
+  }
+
+  if (cmd === 'add') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const key = requireValue(typeof flags['key'] === 'string' ? flags['key'] : undefined, '--key is required');
+    const noExampleWarning = flags['no-example-warning'] === true;
+    warnIfExampleFile(file, noExampleWarning);
+
+    const valueArg = typeof flags['value'] === 'string' ? flags['value'] : undefined;
+    const valueStdin = flags['value-stdin'] === true ? (await readStdinText()).trimEnd() : undefined;
+    const value = valueStdin ?? valueArg ?? '';
+
+    const contents = await readTextFileOrEmpty(file);
+    const result = addDotenvKey({ contents, key, value });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+    } else {
+      process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
+    }
+
+    return result.plan.action === 'key_exists' ? 2 : 0;
+  }
+
+  if (cmd === 'set') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const key = requireValue(typeof flags['key'] === 'string' ? flags['key'] : undefined, '--key is required');
+    const noExampleWarning = flags['no-example-warning'] === true;
+    warnIfExampleFile(file, noExampleWarning);
+
+    const valueArg = typeof flags['value'] === 'string' ? flags['value'] : undefined;
+    const valueStdin = flags['value-stdin'] === true ? (await readStdinText()).trimEnd() : undefined;
+    const value = valueStdin ?? valueArg ?? '';
+
+    const contents = await readTextFileOrEmpty(file);
+    const result = setDotenvKey({ contents, key, value });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+    } else {
+      process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
+    }
+
+    return 0;
+  }
+
+  if (cmd === 'unset') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const key = requireValue(typeof flags['key'] === 'string' ? flags['key'] : undefined, '--key is required');
+    const noExampleWarning = flags['no-example-warning'] === true;
+    warnIfExampleFile(file, noExampleWarning);
+
+    const contents = await readFile(file, 'utf8');
+    const result = unsetDotenvKey({ contents, key });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+    } else {
+      process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
+    }
+
+    return result.plan.action === 'not_found' ? 2 : 0;
+  }
+
+  if (cmd === 'delete') {
+    const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
+    const noExampleWarning = flags['no-example-warning'] === true;
+    warnIfExampleFile(file, noExampleWarning);
+
+    const keyArg = typeof flags['key'] === 'string' ? flags['key'] : undefined;
+    const keysArg = typeof flags['keys'] === 'string' ? flags['keys'] : undefined;
+
+    const keys = keyArg ? [keyArg] : keysArg ? parseList(keysArg) : undefined;
+    if (!keys || keys.length === 0) throw new Error('Provide --key or --keys');
+
+    const contents = await readFile(file, 'utf8');
+    const result = deleteDotenvKeys({ contents, keys });
+
+    const willWrite = flags['write'] === true;
+    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+
+    if (json) {
+      jsonOut({ file, keys, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+    } else {
+      for (const p of result.plan) {
+        process.stdout.write(`${p.action}: ${p.key}${p.line ? ` L${p.line}` : ''}\n`);
+      }
+    }
+
+    const allNotFound = result.plan.every((p) => p.action === 'not_found');
+    return allNotFound ? 2 : 0;
   }
 
   const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');

@@ -61,11 +61,16 @@ Commands:
 - `format --file <path> [--mode sections|global] [--sort alpha|none] [--write]`
 - `reorder --file <path> [--mode sections|global] [--sort alpha|none] [--write]`
 - `annotate --file <path> --key <KEY> --comment <text> [--line <n>] [--write]`
+- `add --file <path> --key <KEY> [--value <v> | --value-stdin] [--write]`
+- `set --file <path> --key <KEY> [--value <v> | --value-stdin] [--write]`
+- `unset --file <path> --key <KEY> [--write]`
+- `delete --file <path> (--key <KEY> | --keys <K1,K2>) [--write]`
 
 Notes for file operations:
 
-- Commands that modify files (`copy`, `format`/`reorder`, `annotate`) are dry-run unless `--write` is provided.
+- Commands that modify files (`copy`, `format`/`reorder`, `annotate`, `add`, `set`, `unset`, `delete`) are dry-run unless `--write` is provided.
 - These commands never print secret values; output includes keys, booleans, and line numbers only.
+- When targeting example files (`.env.example`, `.env.sample`, `.env.template`), a warning is emitted. Use `--no-example-warning` to suppress.
 
 ### List keys
 
@@ -217,6 +222,38 @@ envsitter format --file .env --mode sections --sort alpha --write
 envsitter reorder --file .env --mode sections --sort alpha --write
 ```
 
+### Add a new key (fails if key exists)
+
+```bash
+envsitter add --file .env --key NEW_API_KEY --value "sk-xxx" --write
+# or via stdin (recommended to avoid shell history):
+node -e "process.stdout.write('sk-xxx')" | envsitter add --file .env --key NEW_API_KEY --value-stdin --write
+```
+
+### Set a key (creates or updates)
+
+```bash
+envsitter set --file .env --key API_KEY --value "new-value" --write
+# or via stdin:
+node -e "process.stdout.write('new-value')" | envsitter set --file .env --key API_KEY --value-stdin --write
+```
+
+### Unset a key (set to empty value)
+
+```bash
+envsitter unset --file .env --key OLD_KEY --write
+```
+
+### Delete keys
+
+```bash
+# Single key:
+envsitter delete --file .env --key DEPRECATED_KEY --write
+
+# Multiple keys:
+envsitter delete --file .env --keys OLD_KEY,UNUSED_KEY,LEGACY_KEY --write
+```
+
 ## Output contract (for LLMs)
 
 General rules:
@@ -241,6 +278,8 @@ JSON outputs:
 - `copy --json` -> `{ "from": string, "to": string, "onConflict": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": Array<...> }`
 - `format --json` / `reorder --json` -> `{ "file": string, "mode": string, "sort": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...> }`
 - `annotate --json` -> `{ "file": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { ... } }`
+- `add --json` / `set --json` / `unset --json` -> `{ "file": string, "key": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { "key": string, "action": "added"|"updated"|"unset"|"key_exists"|"not_found"|"no_change", "line"?: number } }`
+- `delete --json` -> `{ "file": string, "keys": string[], "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": Array<{ "key": string, "action": "deleted"|"not_found", "line"?: number }> }`
 
 ## Library API
 
@@ -259,7 +298,16 @@ const match = await es.matchCandidate('OPENAI_API_KEY', 'candidate-secret');
 ### File operations via the library
 
 ```ts
-import { annotateEnvFile, copyEnvFileKeys, formatEnvFile, validateEnvFile } from 'envsitter';
+import {
+  addEnvFileKey,
+  annotateEnvFile,
+  copyEnvFileKeys,
+  deleteEnvFileKeys,
+  formatEnvFile,
+  setEnvFileKey,
+  unsetEnvFileKey,
+  validateEnvFile
+} from 'envsitter';
 
 await validateEnvFile('.env');
 
@@ -273,6 +321,18 @@ await copyEnvFileKeys({
 
 await annotateEnvFile({ file: '.env', key: 'DATABASE_URL', comment: 'prod only', write: true });
 await formatEnvFile({ file: '.env', mode: 'sections', sort: 'alpha', write: true });
+
+// Add a new key (fails if exists)
+await addEnvFileKey({ file: '.env', key: 'NEW_KEY', value: 'new_value', write: true });
+
+// Set a key (creates or updates)
+await setEnvFileKey({ file: '.env', key: 'API_KEY', value: 'updated_value', write: true });
+
+// Unset a key (set to empty)
+await unsetEnvFileKey({ file: '.env', key: 'OLD_KEY', write: true });
+
+// Delete keys
+await deleteEnvFileKeys({ file: '.env', keys: ['DEPRECATED', 'UNUSED'], write: true });
 ```
 
 ### Match operators via the library

@@ -1,6 +1,17 @@
 import { readFile } from 'node:fs/promises';
 
-import { annotateDotenvKey, copyDotenvKeys, formatDotenv, validateDotenv } from './dotenv/edit.js';
+import {
+  addDotenvKey,
+  annotateDotenvKey,
+  copyDotenvKeys,
+  deleteDotenvKeys,
+  formatDotenv,
+  setDotenvKey,
+  unsetDotenvKey,
+  validateDotenv,
+  type KeyMutationAction,
+  type KeyMutationPlanItem
+} from './dotenv/edit.js';
 import { readTextFileOrEmpty, writeTextFileAtomic } from './dotenv/io.js';
 
 export type DotenvIssue = {
@@ -171,4 +182,144 @@ export async function validateEnvFile(file: string): Promise<ValidateEnvFileResu
   const contents = await readFile(file, 'utf8');
   const result = validateDotenv(contents);
   return { file, ok: result.ok, issues: result.issues };
+}
+
+export type { KeyMutationAction, KeyMutationPlanItem };
+
+export type AddEnvFileKeyResult = {
+  file: string;
+  key: string;
+  willWrite: boolean;
+  wrote: boolean;
+  hasChanges: boolean;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+};
+
+export async function addEnvFileKey(options: {
+  file: string;
+  key: string;
+  value: string;
+  write?: boolean;
+}): Promise<AddEnvFileKeyResult> {
+  const contents = await readTextFileOrEmpty(options.file);
+  const result = addDotenvKey({ contents, key: options.key, value: options.value });
+
+  const willWrite = options.write === true;
+  if (willWrite && result.hasChanges) {
+    await writeTextFileAtomic(options.file, result.output);
+  }
+
+  return {
+    file: options.file,
+    key: options.key,
+    willWrite,
+    wrote: willWrite && result.hasChanges,
+    hasChanges: result.hasChanges,
+    issues: result.issues,
+    plan: result.plan
+  };
+}
+
+export type SetEnvFileKeyResult = {
+  file: string;
+  key: string;
+  willWrite: boolean;
+  wrote: boolean;
+  hasChanges: boolean;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+};
+
+export async function setEnvFileKey(options: {
+  file: string;
+  key: string;
+  value: string;
+  write?: boolean;
+}): Promise<SetEnvFileKeyResult> {
+  const contents = await readTextFileOrEmpty(options.file);
+  const result = setDotenvKey({ contents, key: options.key, value: options.value });
+
+  const willWrite = options.write === true;
+  if (willWrite && result.hasChanges) {
+    await writeTextFileAtomic(options.file, result.output);
+  }
+
+  return {
+    file: options.file,
+    key: options.key,
+    willWrite,
+    wrote: willWrite && result.hasChanges,
+    hasChanges: result.hasChanges,
+    issues: result.issues,
+    plan: result.plan
+  };
+}
+
+export type UnsetEnvFileKeyResult = {
+  file: string;
+  key: string;
+  willWrite: boolean;
+  wrote: boolean;
+  hasChanges: boolean;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem;
+};
+
+export async function unsetEnvFileKey(options: {
+  file: string;
+  key: string;
+  write?: boolean;
+}): Promise<UnsetEnvFileKeyResult> {
+  const contents = await readFile(options.file, 'utf8');
+  const result = unsetDotenvKey({ contents, key: options.key });
+
+  const willWrite = options.write === true;
+  if (willWrite && result.hasChanges) {
+    await writeTextFileAtomic(options.file, result.output);
+  }
+
+  return {
+    file: options.file,
+    key: options.key,
+    willWrite,
+    wrote: willWrite && result.hasChanges,
+    hasChanges: result.hasChanges,
+    issues: result.issues,
+    plan: result.plan
+  };
+}
+
+export type DeleteEnvFileKeysResult = {
+  file: string;
+  keys: string[];
+  willWrite: boolean;
+  wrote: boolean;
+  hasChanges: boolean;
+  issues: DotenvIssue[];
+  plan: KeyMutationPlanItem[];
+};
+
+export async function deleteEnvFileKeys(options: {
+  file: string;
+  keys: readonly string[];
+  write?: boolean;
+}): Promise<DeleteEnvFileKeysResult> {
+  const contents = await readFile(options.file, 'utf8');
+  const result = deleteDotenvKeys({ contents, keys: options.keys });
+
+  const willWrite = options.write === true;
+  if (willWrite && result.hasChanges) {
+    await writeTextFileAtomic(options.file, result.output);
+  }
+
+  return {
+    file: options.file,
+    keys: [...options.keys],
+    willWrite,
+    wrote: willWrite && result.hasChanges,
+    hasChanges: result.hasChanges,
+    issues: result.issues,
+    plan: result.plan
+  };
 }
