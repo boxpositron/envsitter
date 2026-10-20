@@ -17,8 +17,9 @@ jobs:
   test:
     name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
     # GitHub only: the Gitea origin also runs .github/workflows but has no macOS/Windows runners.
+    # Gitea matches runs-on before evaluating `if`, so off GitHub every job asks for ubuntu-latest and is skipped.
     if: github.server_url == 'https://github.com'
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ github.server_url == 'https://github.com' && matrix.os || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
