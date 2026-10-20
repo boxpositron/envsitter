@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>envsitter-guard: keep AI agents out of your .env files</title>
+  <meta name="description" content="envsitter-guard is an OpenCode plugin for OpenCode 1 and 2 that blocks agents from reading or editing secret env files and gives them fifteen envsitter tools that never return values.">
+  <link rel="canonical" href="https://boxpositron.github.io/envsitter/guard/">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="envsitter-guard: keep AI agents out of your .env files">
+  <meta property="og:description" content="An OpenCode plugin that blocks agents from reading or editing secret env files and gives them safe envsitter tools instead.">
+  <meta property="og:url" content="https://boxpositron.github.io/envsitter/guard/">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="../assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="wordmark" href="../">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="3.5" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="9" width="3.5" height="2" rx="1" fill="currentColor" opacity=".45"/><rect x="11" y="9" width="7" height="2" rx="1" fill="currentColor"/><rect x="6" y="13" width="2.5" height="2" rx="1" fill="currentColor" opacity=".45"/><rect x="10" y="13" width="8" height="2" rx="1" fill="currentColor"/></svg>
+        envsitter<span class="wordmark-sub">/guard</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="nav-optional" href="#install">Install</a>
+        <a class="nav-optional" href="#blocking">Blocking</a>
+        <a class="nav-optional" href="#tools">Tools</a>
+        <a href="./" aria-current="page">OpenCode guard</a>
+        <a class="nav-github" href="https://github.com/boxpositron/envsitter-guard">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+          <span class="nav-github-label">GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">OpenCode plugin</p>
+          <h1 id="hero-title">Keep AI agents out of your <code>.env</code> files.</h1>
+          <p class="lede">envsitter-guard stops coding agents from reading or editing secret env files, then gives them fifteen envsitter tools that work with keys, fingerprints, and booleans instead of values.</p>
+          <div class="badge-row">
+            <span class="badge"><span class="dot" aria-hidden="true"></span>OpenCode 2.0.32+</span>
+            <span class="badge"><span class="dot" aria-hidden="true"></span>OpenCode 1.18.29+</span>
+          </div>
+          <div class="cta-row">
+            <div class="copy-cmd">
+              <code><span class="prompt">$ </span>opencode plugin add envsitter-guard@latest</code>
+              <button class="copy-btn" type="button" data-copy="opencode plugin add envsitter-guard@latest" aria-label="Copy opencode plugin add envsitter-guard@latest" hidden>
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </button>
+            </div>
+            <a class="btn btn-secondary" href="#install">Other install options</a>
+          </div>
+        </div>
+
+        <figure class="hero-visual" aria-label="An agent session where reading .env and running cat .env.local are blocked, and envsitter_keys returns only key names">
+          <div class="terminal">
+            <div class="panel-bar">
+              <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="panel-title">opencode, agent session</span>
+            </div>
+            <div class="terminal-body" tabindex="0" role="region" aria-label="Agent session"><span class="ln ln-cmd"><span class="ps">tool </span>read .env</span><span class="ln ln-block"><span class="tag">blocked</span>Reading `.env*` is blocked to
+<span class="tag"></span>prevent secret leaks (`.env`).
+<span class="tag"></span>Use EnvSitter tools instead
+<span class="tag"></span>(never prints values).</span><span class="ln ln-cmd"><span class="ps">tool </span>shell cat .env.local</span><span class="ln ln-block"><span class="tag">blocked</span>Shell commands that reference
+<span class="tag"></span>`.env*` files or
+<span class="tag"></span>`.envsitter/pepper` are blocked
+<span class="tag"></span>(`.env.local`).</span><span class="ln ln-cmd"><span class="ps">tool </span>envsitter_keys {"filePath": ".env"}</span><span class="ln ln-out">{
+  <span class="tk-key">"file"</span>: ".env",
+  <span class="tk-key">"keys"</span>: [
+    "API_TOKEN",
+    "DB_PASSWORD"
+  ]
+}</span><span class="ln ln-cmd"><span class="ps">tool </span>envsitter_match {"key": "NODE_ENV",
+     "op": "is_equal", ...}</span><span class="ln ln-out">{ ..., <span class="tk-key">"match"</span>: <span class="tk-true">true</span> }</span></div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section section-subtle" id="install" aria-labelledby="install-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Install</p>
+          <h2 id="install-title">One package for both OpenCode versions.</h2>
+          <p class="lede">OpenCode 2 loads the plugin through <code>setup()</code> and OpenCode 1 through <code>server()</code>, both from the same default export. Restart OpenCode 1 after changing config; OpenCode 2 reloads watched config on its own.</p>
+        </div>
+        <div class="grid grid-2">
+          <div class="code-block">
+            <div class="panel-bar">
+              <span class="panel-title">OpenCode 2: opencode.json</span>
+              <button class="copy-btn" type="button" data-copy='{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["envsitter-guard@latest"]
+}' aria-label="Copy OpenCode 2 config" hidden>
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </button>
+            </div>
+            <pre tabindex="0" role="region" aria-label="OpenCode 2 config"><code>{
+  <span class="tk-str">"$schema"</span>: <span class="tk-str">"https://opencode.ai/config.json"</span>,
+  <span class="tk-str">"plugins"</span>: [<span class="tk-str">"envsitter-guard@latest"</span>]
+}</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="panel-bar">
+              <span class="panel-title">OpenCode 1: opencode.json</span>
+              <button class="copy-btn" type="button" data-copy='{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["envsitter-guard@latest"]
+}' aria-label="Copy OpenCode 1 config" hidden>
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </button>
+            </div>
+            <pre tabindex="0" role="region" aria-label="OpenCode 1 config"><code>{
+  <span class="tk-str">"$schema"</span>: <span class="tk-str">"https://opencode.ai/config.json"</span>,
+  <span class="tk-str">"plugin"</span>: [<span class="tk-str">"envsitter-guard@latest"</span>]
+}</code></pre>
+          </div>
+        </div>
+        <p class="muted section-note">Prefer a local file? Re-export the package from <code>.opencode/plugins/envsitter-guard.ts</code> (OpenCode 2) or <code>.opencode/plugin/</code> (OpenCode 1). The <a class="text-link" href="https://github.com/boxpositron/envsitter-guard#readme">README</a> has the snippet.</p>
+      </div>
+    </section>
+
+    <section class="section" id="blocking" aria-labelledby="blocking-title">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">Blocking</p>
+          <h2 id="blocking-title">Every path to a secret file, closed.</h2>
+          <p class="lede">Protected files are <code>.env</code>, <code>.env.&lt;anything&gt;</code>, <code>&lt;name&gt;.env</code>, <code>&lt;name&gt;.env.&lt;anything&gt;</code>, and <code>.envsitter/pepper</code>. Blocked calls fail with a message that points the agent to <code>envsitter_help</code>.</p>
+        </div>
+        <div class="stack">
+          <ul class="check-list" aria-label="Blocked">
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Reads and edits.</strong> Any non-envsitter tool whose path arguments point at a protected file: <code>read</code>, <code>edit</code>, <code>write</code>, <code>grep</code> on a file, MCP filesystem tools.</span></li>
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Patches.</strong> <code>patch</code> and <code>apply_patch</code> calls that add, update, move, or delete a protected file.</span></li>
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Shell commands.</strong> Commands that name a protected file, such as <code>cat .env</code>, <code>source .env</code>, <code>echo X &gt;&gt; .env</code>, or <code>node --env-file=.env</code>.</span></li>
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Search results.</strong> <code>grep</code> matches inside protected files are removed from the output.</span></li>
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Secret values in tool output.</strong> Secret-looking values from protected env files are replaced with <code>[envsitter: KEY redacted]</code> in every other tool's output, so <code>grep -r</code>, <code>cat *</code>, and log files do not hand them to the model.</span></li>
+            <li class="is-block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6m0-6-6 6"/></svg><span><strong>Permission checks (OpenCode 2).</strong> <code>read</code>, <code>edit</code>, and <code>shell</code> checks on protected files are denied, including calls made from Code Mode.</span></li>
+          </ul>
+          <ul class="check-list" aria-label="Allowed">
+            <li class="is-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span><strong>Templates stay readable.</strong> <code>.env.example</code>, <code>.env.sample</code>, <code>.env.template</code>, <code>.env.dist</code>, and <code>.env.default(s)</code>.</span></li>
+            <li class="is-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><span><strong>The envsitter CLI still runs.</strong> Shell calls such as <code>npx envsitter keys --file .env</code> are allowed because the CLI never prints values.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-subtle" id="tools" aria-labelledby="tools-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Tools</p>
+          <h2 id="tools-title">Fifteen tools that never return a value.</h2>
+          <p class="lede">Agents call them by name. Mutations and file operations are dry runs unless the agent passes <code>write: true</code>, and output is limited to keys, booleans, line numbers, and plans.</p>
+        </div>
+        <div class="grid grid-3">
+          <div class="card tool-group">
+            <h3>Reading</h3>
+            <ul class="tool-list"><li><code>envsitter_keys</code></li><li><code>envsitter_fingerprint</code></li><li><code>envsitter_scan</code></li></ul>
+            <p>List keys, fingerprint one value, or detect JWT, URL, and base64 shapes.</p>
+          </div>
+          <div class="card tool-group">
+            <h3>Matching</h3>
+            <ul class="tool-list"><li><code>envsitter_match</code></li><li><code>envsitter_match_by_key</code></li></ul>
+            <p>Boolean checks with every envsitter operator, for one key, many keys, or all keys.</p>
+          </div>
+          <div class="card tool-group">
+            <h3>Mutations</h3>
+            <ul class="tool-list"><li><code>envsitter_add</code></li><li><code>envsitter_set</code></li><li><code>envsitter_unset</code></li><li><code>envsitter_delete</code></li></ul>
+            <p>Add, update, empty, or remove keys without the agent ever reading the file.</p>
+          </div>
+          <div class="card tool-group">
+            <h3>File operations</h3>
+            <ul class="tool-list"><li><code>envsitter_validate</code></li><li><code>envsitter_copy</code></li><li><code>envsitter_format</code></li><li><code>envsitter_reorder</code></li><li><code>envsitter_annotate</code></li></ul>
+            <p>Validate syntax, copy keys between files, sort them, or add comments.</p>
+          </div>
+          <div class="card tool-group">
+            <h3>Help</h3>
+            <ul class="tool-list"><li><code>envsitter_help</code></li></ul>
+            <p>A built-in guide the agent can read when a call is blocked.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="compatibility" aria-labelledby="compat-title">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">Compatibility</p>
+          <h2 id="compat-title">Verified against real OpenCode builds.</h2>
+          <p class="lede">Before every release, an end-to-end check runs the real OpenCode 1 and OpenCode 2 CLIs against a scripted model and confirms each blocking scenario holds.</p>
+        </div>
+        <div class="stack">
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Compatibility">
+            <table class="data-table">
+              <thead><tr><th scope="col">OpenCode</th><th scope="col">Minimum</th><th scope="col">Verified</th><th scope="col">Entry point</th></tr></thead>
+              <tbody>
+                <tr><td>2.x</td><td><code>2.0.32</code></td><td><code>2.0.32</code>, <code>2.1.0</code></td><td><code>setup(ctx)</code></td></tr>
+                <tr><td>1.x</td><td><code>1.18.29</code></td><td><code>1.18.31</code>, <code>1.19.3</code></td><td><code>server()</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="check-list" aria-label="Limits">
+            <li class="is-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg><span><strong>A guardrail, not a sandbox.</strong> Shell commands that reach file contents without naming the file, such as <code>grep -r TOKEN .</code> or <code>cat *</code>, are not blocked; their output is scrubbed instead. Encoded or transformed values (base64, split strings) and values that do not look secret get through.</span></li>
+            <li class="is-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg><span><strong>Default pepper location only.</strong> A pepper file at a custom path is not recognized as protected.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-subtle" aria-labelledby="library-title">
+      <div class="container">
+        <div class="band">
+          <div class="stack">
+            <p class="eyebrow">Built on envsitter</p>
+            <h2 id="library-title">The same tools work outside OpenCode.</h2>
+            <p>Every guard tool is backed by the envsitter library and CLI, which you can use directly in scripts, CI, and your own agent integrations.</p>
+          </div>
+          <a class="btn btn-primary" href="../">Explore envsitter <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <p>envsitter-guard is open source under the MIT license.</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/boxpositron/envsitter-guard">GitHub</a></li>
+        <li><a href="https://www.npmjs.com/package/envsitter-guard">npm</a></li>
+        <li><a href="https://github.com/boxpositron/envsitter-guard/blob/main/CHANGELOG.md">Changelog</a></li>
+        <li><a href="../">envsitter</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <p id="copy-status" class="visually-hidden" aria-live="polite"></p>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .tile { fill: #171717; }
+    .key { fill: #ffffff; opacity: 0.5; }
+    .bar { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #ededed; }
+      .key, .bar { fill: #0a0a0a; }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="8"/>
+  <rect class="key" x="7" y="10" width="5" height="3" rx="1.5"/>
+  <rect class="bar" x="14" y="10" width="11" height="3" rx="1.5"/>
+  <rect class="key" x="7" y="15.5" width="4" height="3" rx="1.5"/>
+  <rect class="bar" x="13" y="15.5" width="12" height="3" rx="1.5"/>
+  <rect class="key" x="7" y="21" width="6" height="3" rx="1.5"/>
+  <rect class="bar" x="15" y="21" width="7" height="3" rx="1.5"/>
+</svg>

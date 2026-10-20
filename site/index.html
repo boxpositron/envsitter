@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>envsitter: inspect .env secrets without exposing values</title>
+  <meta name="description" content="envsitter is a TypeScript library and CLI that lists keys, fingerprints values with HMAC-SHA-256, and answers yes or no questions about .env secrets without ever printing them.">
+  <link rel="canonical" href="https://boxpositron.github.io/envsitter/">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="envsitter: inspect .env secrets without exposing values">
+  <meta property="og:description" content="List keys, fingerprint values, and match candidates against .env secrets without ever printing them.">
+  <meta property="og:url" content="https://boxpositron.github.io/envsitter/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="wordmark" href="./">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="3.5" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="9" width="3.5" height="2" rx="1" fill="currentColor" opacity=".45"/><rect x="11" y="9" width="7" height="2" rx="1" fill="currentColor"/><rect x="6" y="13" width="2.5" height="2" rx="1" fill="currentColor" opacity=".45"/><rect x="10" y="13" width="8" height="2" rx="1" fill="currentColor"/></svg>
+        envsitter
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="nav-optional" href="#cli">CLI</a>
+        <a class="nav-optional" href="#library">Library</a>
+        <a href="guard/">OpenCode guard</a>
+        <a class="nav-github" href="https://github.com/boxpositron/envsitter">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+          <span class="nav-github-label">GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Open source library and CLI</p>
+          <h1 id="hero-title">Work with <code>.env</code> secrets without ever seeing them.</h1>
+          <p class="lede">envsitter lists keys, fingerprints values with HMAC-SHA-256, and answers yes or no questions about them. Values stay in memory, so they never reach your terminal, your logs, or an AI agent's context.</p>
+          <div class="cta-row">
+            <div class="copy-cmd">
+              <code><span class="prompt">$ </span>npm install envsitter</code>
+              <button class="copy-btn" type="button" data-copy="npm install envsitter" aria-label="Copy npm install envsitter" hidden>
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </button>
+            </div>
+            <a class="btn btn-secondary" href="https://github.com/boxpositron/envsitter#readme">Read the docs</a>
+          </div>
+        </div>
+
+        <figure class="hero-visual" aria-label="An env file whose values are redacted, next to envsitter terminal output that shows only keys and a boolean match">
+          <div class="panel">
+            <div class="panel-bar">
+              <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="panel-title">.env, as envsitter reports it</span>
+            </div>
+            <div class="envfile-body">
+              <span class="env-key">API_TOKEN</span><span class="redact" style="--w: 78%; --i: 0" role="img" aria-label="value hidden"></span>
+              <span class="env-key">DATABASE_URL</span><span class="redact" style="--w: 94%; --i: 1" role="img" aria-label="value hidden"></span>
+              <span class="env-key">NODE_ENV</span><span class="redact" style="--w: 34%; --i: 2" role="img" aria-label="value hidden"></span>
+              <span class="env-key">PORT</span><span class="redact" style="--w: 16%; --i: 3" role="img" aria-label="value hidden"></span>
+              <span class="env-key">STRIPE_SECRET_KEY</span><span class="redact" style="--w: 70%; --i: 4" role="img" aria-label="value hidden"></span>
+            </div>
+            <p class="envfile-foot">Keys are readable. Values never leave memory.</p>
+          </div>
+
+          <div class="terminal">
+            <div class="panel-bar">
+              <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="panel-title">zsh</span>
+            </div>
+            <div class="terminal-body" tabindex="0" role="region" aria-label="Terminal output"><span class="ln ln-cmd"><span class="ps">$ </span>envsitter keys --file .env</span><span class="ln ln-out">API_TOKEN
+DATABASE_URL
+NODE_ENV
+PORT
+STRIPE_SECRET_KEY</span><span class="ln ln-cmd"><span class="ps">$ </span>pbpaste | envsitter match \
+    --file .env \
+    --key STRIPE_SECRET_KEY \
+    --candidate-stdin --json</span><span class="ln ln-out">{
+  <span class="tk-key">"key"</span>: "STRIPE_SECRET_KEY",
+  <span class="tk-key">"match"</span>: <span class="tk-true">true</span>
+}</span></div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section section-subtle" aria-labelledby="ops-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Match operators</p>
+          <h2 id="ops-title">Ask questions about a value. Get a boolean back.</h2>
+          <p class="lede">Every operator evaluates the value in-process and returns only <code>true</code> or <code>false</code>. Equality is checked by comparing HMAC digests, never the raw strings.</p>
+        </div>
+        <div class="ops">
+          <div class="op"><code>exists</code><p>The key is present in the source.</p></div>
+          <div class="op"><code>is_empty</code><p>The value is exactly the empty string.</p></div>
+          <div class="op"><code>is_equal</code><span class="needs">needs a candidate</span><p>Deterministic match against a candidate you supply, compared in constant time.</p></div>
+          <div class="op"><code>partial_match_prefix</code><span class="needs">needs a candidate</span><p>The value starts with the candidate.</p></div>
+          <div class="op"><code>partial_match_suffix</code><span class="needs">needs a candidate</span><p>The value ends with the candidate.</p></div>
+          <div class="op"><code>partial_match_regex</code><span class="needs">needs a candidate</span><p>The value matches a regex such as <code>/^sk-/</code>.</p></div>
+          <div class="op"><code>is_number</code><p>The value parses as a finite number.</p></div>
+          <div class="op"><code>is_boolean</code><p>The value is <code>true</code> or <code>false</code>, ignoring case and surrounding spaces.</p></div>
+          <div class="op"><code>is_string</code><p>The value is neither a number nor a boolean.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="surfaces-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">One rule everywhere</p>
+          <h2 id="surfaces-title">Keys, fingerprints, and booleans. Never values.</h2>
+          <p class="lede">The same guarantee holds whether you run a command, call the library, or let an AI coding agent work in your project.</p>
+        </div>
+        <div class="grid grid-3">
+          <a class="card card-link" href="#cli">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="19" height="17" rx="2.5"/><path d="m7 9 3 3-3 3M12.5 15h4.5"/></svg></span>
+            <h3>CLI</h3>
+            <p>Inspect, validate, copy, and edit env files from your shell with JSON output and useful exit codes.</p>
+            <span class="more">Command reference <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="card card-link" href="#library">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4C6 4 5.5 5 5.5 7v2c0 1.5-.8 2.5-2 3 1.2.5 2 1.5 2 3v2c0 2 .5 3 2.5 3M16 4c2 0 2.5 1 2.5 3v2c0 1.5.8 2.5 2 3-1.2.5-2 1.5-2 3v2c0 2-.5 3-2.5 3"/></svg></span>
+            <h3>Library</h3>
+            <p>A typed TypeScript API for keys, fingerprints, matchers, scans, and file operations inside your own tools.</p>
+            <span class="more">Library usage <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="card card-link" href="guard/">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <h3>OpenCode guard</h3>
+            <p>A plugin that blocks AI agents from reading or editing secret env files and hands them envsitter tools instead.</p>
+            <span class="more">Guard for agents <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-subtle" id="cli" aria-labelledby="cli-title">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">CLI</p>
+          <h2 id="cli-title">Every command keeps values in memory.</h2>
+          <p class="lede">Output contains keys, booleans, lengths, fingerprints, and line numbers. Commands that change files are dry runs until you pass <code>--write</code>.</p>
+          <div class="copy-cmd">
+            <code><span class="prompt">$ </span>npx envsitter keys --file .env</code>
+            <button class="copy-btn" type="button" data-copy="npx envsitter keys --file .env" aria-label="Copy npx envsitter keys --file .env" hidden>
+              <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+              <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+            </button>
+          </div>
+          <p class="muted">Exit codes: <code>0</code> success or match, <code>1</code> no match, <code>2</code> usage or runtime error.</p>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="CLI commands">
+          <table class="data-table">
+            <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+            <tbody>
+              <tr><td class="cmd"><code>keys</code></td><td>List the keys in an env file</td></tr>
+              <tr><td class="cmd"><code>fingerprint</code></td><td>Deterministic HMAC fingerprint of one key</td></tr>
+              <tr><td class="cmd"><code>match</code></td><td>Match a candidate or operator against one, many, or all keys</td></tr>
+              <tr><td class="cmd"><code>match-by-key</code></td><td>Bulk match a different candidate per key</td></tr>
+              <tr><td class="cmd"><code>scan</code></td><td>Detect value shapes: JWT, URL, base64</td></tr>
+                <tr><td class="cmd"><code>redact</code></td><td>Replace secret values in text read from stdin</td></tr>
+              <tr><td class="cmd"><code>validate</code></td><td>Check dotenv syntax with line and column</td></tr>
+              <tr><td class="cmd"><code>copy</code></td><td>Copy keys between env files, with rename and conflict policy</td></tr>
+              <tr><td class="cmd"><code>format</code>, <code>reorder</code></td><td>Sort and organize keys, by section or globally</td></tr>
+              <tr><td class="cmd"><code>annotate</code></td><td>Add a comment above a key</td></tr>
+              <tr><td class="cmd"><code>add</code></td><td>Add a new key, failing if it already exists</td></tr>
+              <tr><td class="cmd"><code>set</code></td><td>Create or update a key</td></tr>
+              <tr><td class="cmd"><code>unset</code></td><td>Set a key to an empty value</td></tr>
+              <tr><td class="cmd"><code>delete</code></td><td>Remove one or more keys</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="library" aria-labelledby="library-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Library</p>
+          <h2 id="library-title">The same guarantees, typed.</h2>
+          <p class="lede">Build envsitter into release scripts, audits, or your own agent tools. Nothing in the API returns a plaintext value.</p>
+          <p class="muted">Path helpers such as <code>isSensitiveEnvFile</code> tell your tooling which files hold real secrets and which are committed templates like <code>.env.example</code>.</p>
+        </div>
+        <div class="code-block">
+          <div class="panel-bar">
+            <span class="panel-title">check-secrets.ts</span>
+            <button class="copy-btn" type="button" data-copy="import { EnvSitter, setEnvFileKey } from 'envsitter';
+
+const es = EnvSitter.fromDotenvFile('.env');
+
+await es.listKeys();
+await es.matchCandidate('API_TOKEN', candidate);
+await es.matchKey('PORT', { op: 'is_number' });
+await es.fingerprintKey('API_TOKEN');
+
+await setEnvFileKey({ file: '.env', key: 'API_TOKEN', value: next, write: true });" aria-label="Copy library example" hidden>
+              <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/></svg>
+              <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+            </button>
+          </div>
+          <pre tabindex="0" role="region" aria-label="Library example"><code><span class="tk-kw">import</span> { EnvSitter, setEnvFileKey } <span class="tk-kw">from</span> <span class="tk-str">'envsitter'</span>;
+
+<span class="tk-kw">const</span> es = EnvSitter.<span class="tk-fn">fromDotenvFile</span>(<span class="tk-str">'.env'</span>);
+
+<span class="tk-kw">await</span> es.<span class="tk-fn">listKeys</span>();                              <span class="tk-cm">// ['API_TOKEN', 'PORT', ...]</span>
+<span class="tk-kw">await</span> es.<span class="tk-fn">matchCandidate</span>(<span class="tk-str">'API_TOKEN'</span>, candidate);  <span class="tk-cm">// true or false</span>
+<span class="tk-kw">await</span> es.<span class="tk-fn">matchKey</span>(<span class="tk-str">'PORT'</span>, { op: <span class="tk-str">'is_number'</span> });   <span class="tk-cm">// true</span>
+<span class="tk-kw">await</span> es.<span class="tk-fn">fingerprintKey</span>(<span class="tk-str">'API_TOKEN'</span>);             <span class="tk-cm">// hmac-sha256 digest + length</span>
+
+<span class="tk-cm">// Dry run unless write: true. Returns a plan, never the value.</span>
+<span class="tk-kw">await</span> <span class="tk-fn">setEnvFileKey</span>({ file: <span class="tk-str">'.env'</span>, key: <span class="tk-str">'API_TOKEN'</span>, value: next, write: <span class="tk-kw">true</span> });</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-subtle" aria-labelledby="security-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Security model</p>
+          <h2 id="security-title">Comparisons without disclosure.</h2>
+          <p class="lede">Values are read in-process for comparisons, but the library never returns them and the CLI never prints them.</p>
+        </div>
+        <div class="grid grid-3">
+          <div class="card">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/></svg></span>
+            <h3>Keyed fingerprints</h3>
+            <p>Fingerprints are HMAC-SHA-256 with a local pepper, not raw hashes that are easy to dictionary-guess. The pepper comes from <code>ENVSITTER_PEPPER</code> or a <code>.envsitter/pepper</code> file created with mode 0600.</p>
+          </div>
+          <div class="card">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="5"/><circle cx="16.5" cy="12" r="2.5"/></svg></span>
+            <h3>Constant-time equality</h3>
+            <p><code>is_equal</code> hashes the candidate and the stored value with the same pepper and compares the digests in constant time.</p>
+          </div>
+          <div class="card">
+            <span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="19" height="17" rx="2.5"/><path d="m7 9 3 3-3 3M12.5 15h4.5"/></svg></span>
+            <h3>Candidates over stdin</h3>
+            <p>Pass candidates and new values with <code>--candidate-stdin</code> or <code>--value-stdin</code> so secrets stay out of your shell history.</p>
+          </div>
+        </div>
+        <p class="muted section-note">Not a secret manager: envsitter does not encrypt, sync, or relocate values. It works on your env sources in place.</p>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="guard-title">
+      <div class="container">
+        <div class="band">
+          <div class="stack">
+            <p class="eyebrow">For AI coding agents</p>
+            <h2 id="guard-title">Give your agent envsitter, not your secrets.</h2>
+            <p>envsitter-guard is an OpenCode plugin for OpenCode 1 and 2. It blocks agents from reading or editing secret env files and gives them fifteen envsitter tools that never return values.</p>
+          </div>
+          <a class="btn btn-primary" href="guard/">Explore the guard <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-row">
+      <p>envsitter is open source under the MIT license.</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/boxpositron/envsitter">GitHub</a></li>
+        <li><a href="https://www.npmjs.com/package/envsitter">npm</a></li>
+        <li><a href="https://github.com/boxpositron/envsitter/blob/main/CHANGELOG.md">Changelog</a></li>
+        <li><a href="guard/">OpenCode guard</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <p id="copy-status" class="visually-hidden" aria-live="polite"></p>
+</body>
+</html>
