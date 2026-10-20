@@ -1,6 +1,11 @@
 # envsitter
 
+[![CI](https://github.com/boxpositron/envsitter/actions/workflows/ci.yml/badge.svg)](https://github.com/boxpositron/envsitter/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/envsitter)](https://www.npmjs.com/package/envsitter)
+
 Safely inspect and match `.env` secrets **without ever printing values**.
+
+Docs: https://boxpositron.github.io/envsitter/
 
 `envsitter` is designed for LLM/agent workflows where you want to:
 
@@ -18,6 +23,7 @@ Related: https://github.com/boxpositron/envsitter-guard — an OpenCode plugin t
 - Deterministic matching uses **HMAC-SHA-256** with a local pepper.
   - This avoids publishing raw SHA-256 hashes that are easy to dictionary-guess.
 - Candidate secrets should be passed via stdin (`--candidate-stdin`) to avoid shell history.
+- File writes keep the target file's permission bits and go through symlinks to the real file; new env files are created with mode `0600`.
 
 Non-goals:
 
@@ -29,6 +35,8 @@ Non-goals:
 ```bash
 npm install envsitter
 ```
+
+Requires Node.js 22 or later.
 
 Or run the CLI without installing globally:
 
@@ -45,7 +53,7 @@ Resolution order:
 1. `process.env.ENVSITTER_PEPPER` (or `ENV_SITTER_PEPPER`)
 2. Pepper file at `.envsitter/pepper` (auto-created if missing)
 
-The pepper file is created with mode `0600` when possible, and `.envsitter/` is gitignored.
+The pepper file is created with mode `0600` when possible. When envsitter creates `.envsitter/`, it also writes `.envsitter/.gitignore` (`*`), so the pepper stays out of git even if your project's `.gitignore` does not list it. An existing pepper file is never replaced: if it is empty, malformed, or unreadable, envsitter stops with an error instead of generating a new pepper (which would change every fingerprint).
 
 ## CLI usage
 
@@ -58,6 +66,7 @@ The pepper file is created with mode `0600` when possible, and `.envsitter/` is 
 | `match` | Match candidate value(s) against key(s) |
 | `match-by-key` | Bulk match candidates by key |
 | `scan` | Detect value shapes (JWT, URL, base64) |
+| `redact` | Replace secret values in text read from stdin |
 | `validate` | Check dotenv syntax |
 | `copy` | Copy keys between env files |
 | `format` / `reorder` | Sort and organize env files |
@@ -74,6 +83,7 @@ The pepper file is created with mode `0600` when possible, and `.envsitter/` is 
 - `match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]`
 - `match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)`
 - `scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]`
+- `redact --file <path> [--all] [--min-length <n>]`
 - `validate --file <path>`
 - `copy --from <path> --to <path> [--keys <K1,K2>] [--include-regex <re>] [--exclude-regex <re>] [--rename <A=B,C=D>] [--on-conflict error|skip|overwrite] [--write]`
 - `format --file <path> [--mode sections|global] [--sort alpha|none] [--write]`
@@ -201,6 +211,17 @@ Optionally restrict which keys to scan:
 envsitter scan --file .env --keys-regex "/(JWT|URL)/" --detect jwt,url
 ```
 
+### Redact secret values from text
+
+Replace secret values in any text (logs, command output, support bundles) before sharing it. `redact` reads stdin, writes the text to stdout with each value replaced by `[envsitter: KEY redacted]`, and reports counts per key on stderr (or in the output with `--json`):
+
+```bash
+envsitter redact --file .env < app.log > app.redacted.log
+envsitter redact --file .env --json < app.log
+```
+
+A value is redacted when it is at least 8 characters long, is not a plain number or boolean, and looks secret: its key name contains a word such as `TOKEN`, `SECRET`, `PASSWORD`, or `API_KEY`; it is shaped like a random token; it is a URL with a password (the bare password is redacted too); or it is a PEM block. Ordinary config such as `NODE_ENV=development` is left alone. `--all` redacts every value, and `--min-length <n>` changes the length floor. Encoded or transformed values (base64, split strings) are not detected.
+
 ### Validate dotenv syntax
 
 ```bash
@@ -294,10 +315,10 @@ JSON outputs:
   - with `--op`: `{ "op": string, "matches": Array<{ "key": string, "match": boolean }> }`
 - `match-by-key --json` -> `{ "matches": Array<{ "key": string, "match": boolean }> }`
 - `scan --json` -> `{ "findings": Array<{ "key": string, "detections": Array<"jwt"|"url"|"base64"> }> }`
-- `validate --json` -> `{ "ok": boolean, "issues": Array<{ "line": number, "column": number, "message": string }> }`
+- `validate --json` -> `{ "file": string, "ok": boolean, "issues": Array<{ "line": number, "column": number, "message": string }> }`
 - `copy --json` -> `{ "from": string, "to": string, "onConflict": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": Array<...> }`
 - `format --json` / `reorder --json` -> `{ "file": string, "mode": string, "sort": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...> }`
-- `annotate --json` -> `{ "file": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { ... } }`
+- `annotate --json` -> `{ "file": string, "key": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { ... } }`
 - `add --json` / `set --json` / `unset --json` -> `{ "file": string, "key": string, "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": { "key": string, "action": "added"|"updated"|"unset"|"key_exists"|"not_found"|"no_change", "line"?: number } }`
 - `delete --json` -> `{ "file": string, "keys": string[], "willWrite": boolean, "wrote": boolean, "hasChanges": boolean, "issues": Array<...>, "plan": Array<{ "key": string, "action": "deleted"|"not_found", "line"?: number }> }`
 
@@ -358,14 +379,27 @@ await deleteEnvFileKeys({ file: '.env', keys: ['DEPRECATED', 'UNUSED'], write: t
 ### Utility functions
 
 ```ts
-import { isExampleEnvFile } from 'envsitter';
+import { isEnvFile, isEnvSitterPepperFile, isExampleEnvFile, isSensitiveEnvFile } from 'envsitter';
+
+// Dotenv-style file names (any directory, POSIX or Windows separators)
+isEnvFile('.env.local');               // true
+isEnvFile('config.env.local');         // true
+isEnvFile('app.env.ts');               // false (source file)
 
 // Detect example/template env files
 isExampleEnvFile('.env.example');      // true
 isExampleEnvFile('api.env.sample');    // true
 isExampleEnvFile('.env');              // false
-isExampleEnvFile('api.env');           // false
+
+// Env files that may hold real values (every env file except examples/templates)
+isSensitiveEnvFile('.env.production'); // true
+isSensitiveEnvFile('.env.example');    // false
+
+// The default pepper location
+isEnvSitterPepperFile('.envsitter/pepper'); // true
 ```
+
+`envsitter-guard` uses `isSensitiveEnvFile` and `isEnvSitterPepperFile` to decide what agents may not read or edit.
 
 ### Match operators via the library
 
@@ -410,6 +444,18 @@ const es = EnvSitter.fromExternalCommand('my-secret-provider', ['export', '--for
 const keys = await es.listKeys();
 ```
 
+### Redact secret values
+
+```ts
+import { EnvSitter } from 'envsitter';
+
+const redactor = await EnvSitter.fromDotenvFile('.env').redactor();
+const { text, redactions } = redactor.redact(logOutput);
+// text has each secret value replaced by [envsitter: KEY redacted]; redactions is [{ key, count }]
+```
+
+`redactor.keys` lists the keys it covers, and the values never leave the redactor. Options: `{ all?: boolean; minLength?: number }`, with the same rules as the `redact` command.
+
 ## Development
 
 ```bash
@@ -431,6 +477,16 @@ Run a single test by name:
 npm run build
 node --test --test-name-pattern "outside-in" dist/test/envsitter.test.js
 ```
+
+## Releasing
+
+Releases are published by GitHub Actions with npm trusted publishing, so no npm token is stored anywhere and every version ships with a provenance attestation.
+
+1. Bump `version` in `package.json` and replace `(Unreleased)` in the matching `CHANGELOG.md` heading with the release date.
+2. Commit, then push a matching tag: `git tag v0.1.0 && git push origin main v0.1.0`.
+3. The Release workflow reruns CI, checks that the tag, `package.json`, and the CHANGELOG agree, publishes to npm (prereleases such as `v0.2.0-beta.1` go to the `next` dist-tag), and creates the GitHub Release from the CHANGELOG section.
+
+The docs site in `site/` deploys to GitHub Pages on every push to `main` that changes it.
 
 ## License
 

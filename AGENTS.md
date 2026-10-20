@@ -9,50 +9,56 @@ This repo contains `envsitter`: a TypeScript (ESM) library + CLI for safely insp
 - Prefer comparisons via deterministic fingerprints (HMAC) and boolean match results.
 - Prefer passing candidate secrets via stdin (to avoid shell history): `--candidate-stdin`.
 - Keep all generated peppers/secrets out of git (see `.gitignore`).
+- `envsitter-guard` (separate repo) exposes this package's exports to AI agents as tools, so every new export is agent-reachable.
 
 ## Project layout
 
-- `src/envsitter.ts`: main library surface (`EnvSitter`)
-- `src/cli.ts`: CLI entrypoint
-- `src/dotenv/parse.ts`: minimal dotenv parser
-- `src/pepper.ts`: pepper resolution + auto-create
-- `src/test/*.test.ts`: Node test suite (compiled to `dist/test/*.test.js`)
+- `src/index.ts`: public exports (the only surface npm users and `envsitter-guard` see)
+- `src/envsitter.ts`: `EnvSitter` read-only facade (keys, fingerprints, matchers, scan, redactor)
+- `src/cli.ts`: CLI entrypoint (`bin` -> `dist/cli.js`); one `if (cmd === ...)` block per command in `run()`
+- `src/file-ops.ts`: file-level mutations for the library API (read, edit, atomic write only when `write: true`)
+- `src/pepper.ts`: pepper resolution + auto-create; `src/fingerprint.ts`: HMAC-SHA-256
+- `src/sources/`: `DotenvFileSource`, `ExternalCommandSource` (both parse with `dotenv/parse.ts`)
+- `src/dotenv/document.ts`: the only dotenv grammar; round-trippable, keeps comments, blank lines, and line/column issues
+- `src/dotenv/parse.ts`: values-only view of `document.ts` (read path)
+- `src/dotenv/edit.ts`: pure string-in/string-out edits (copy, format, annotate, add/set/unset/delete); owns the edit types that `file-ops.ts` re-exports
+- `src/dotenv/io.ts`: `readTextFileOrEmpty`, `writeTextFileAtomic` (keeps file mode, writes through symlinks, new files `0600`); `src/dotenv/utils.ts`: value quoting
+- `src/paths.ts`: path policy (`isEnvFile`, `isExampleEnvFile`, `isSensitiveEnvFile`, `isEnvSitterPepperFile`)
+- `src/regex.ts`: `regexTest`; use it for every user-supplied regex (resets `lastIndex` for `g`/`y` flags)
+- `src/redact.ts`: `createRedactor` behind `EnvSitter#redactor()` and the `redact` command; decides which values look secret (key names, token shape, URL passwords, PEM)
+- `src/test/*.test.ts`: Node test suite (compiled to `dist/test/*.test.js`); `cli.test.ts` spawns `dist/cli.js`
+- `.github/workflows/`: `ci.yml` (push, PR, reusable), `release.yml` (tag `vX.Y.Z` -> CI -> npm trusted publishing -> GitHub Release), `pages.yml` (deploys `site/`); `.github/dependabot.yml` groups weekly npm and Actions updates
+- `.github/scripts/changelog-section.mjs`: prints a version's CHANGELOG section; fails if missing or still `(Unreleased)`
+- `site/`: static docs site for envsitter and envsitter-guard (no build step); `site/DESIGN.md` is its design contract and is not published
+
+### Gotchas
+
+- Grammar changes go in `dotenv/document.ts` only; `parseDotenv`, `validate`, and every edit follow automatically.
+- CLI file commands are thin wrappers over `file-ops.ts`; change behavior there, then keep the CLI's text (non-JSON) output in step.
+- `src/paths.ts` is the policy `envsitter-guard` enforces. Widening or narrowing `isSensitiveEnvFile` changes what agents are blocked from; add a case to `paths.test.ts` for every change.
+- `src/test/envsitter.test.ts` resolves the default pepper (`<cwd>/.envsitter/pepper`) unless `ENVSITTER_PEPPER` is set, so `npm test` creates that file on first run.
 
 ## Build / typecheck / test
 
-There is no linter configured (no ESLint/Prettier). Use `tsc` + tests as quality gates.
+There is no linter configured (no ESLint/Prettier). Use `tsc` + tests as quality gates. Husky pre-commit runs `npm test`.
 
-### Install
+```bash
+npm install
+npm run build       # tsc -p tsconfig.json -> dist/
+npm run typecheck   # tsc --noEmit
+npm test            # build, then scripts/run-tests.mjs runs every dist/test/*.test.js
+# tests execute from compiled JS, so build before running one file or one test
+npm run build && node --test dist/test/envsitter.test.js
+npm run build && node --test --test-name-pattern "outside-in" dist/test/envsitter.test.js
+```
 
-- `npm install`
+`--test-name-pattern` takes a substring/regex matching the `test('name', ...)` title.
 
-### Build
+### Releasing
 
-- `npm run build`
-  - Runs `tsc -p tsconfig.json` and outputs to `dist/`
-
-### Typecheck only
-
-- `npm run typecheck`
-
-### Run all tests
-
-- `npm test`
-  - Runs `npm run build` then `node scripts/run-tests.mjs`
-
-### Run a single test file
-
-Tests are written in TS but executed from compiled JS.
-
-- `npm run build`
-- `node --test dist/test/envsitter.test.js`
-
-### Run a single test by name/pattern
-
-- `npm run build`
-- `node --test --test-name-pattern "outside-in" dist/test/envsitter.test.js`
-
-(Use a substring/regex that matches the `test('name', ...)` title.)
+- Bump `package.json`, date the CHANGELOG heading, commit, push tag `vX.Y.Z`. The Release workflow does the rest; never `npm publish` by hand.
+- Push to `origin` (Gitea, `git.boxpositron.dev`); it mirrors to GitHub, where the workflows run. Jobs are guarded with `if: github.server_url == 'https://github.com'` so Gitea's runner skips them.
+- npm trusted publishing (OIDC) authenticates the publish; no npm token exists in the repo. Keep `release.yml` as the publishing workflow name, because the npm trusted-publisher config pins it.
 
 ### Bun
 
