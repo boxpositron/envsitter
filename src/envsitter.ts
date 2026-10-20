@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { base64UrlEncode } from './encoding.js';
 import { fingerprintValueHmacSha256 } from './fingerprint.js';
 import { resolvePepper, type PepperOptions } from './pepper.js';
+import { createRedactor, type EnvSitterRedactor, type RedactOptions } from './redact.js';
+import { regexTest } from './regex.js';
 import { DotenvFileSource } from './sources/dotenvFile.js';
 import { ExternalCommandSource } from './sources/externalCommand.js';
 
@@ -76,8 +78,9 @@ export class EnvSitter {
   async listKeys(options: ListKeysOptions = {}): Promise<string[]> {
     const snapshot = await this.source.load();
     const keys = [...snapshot.values.keys()].sort((a, b) => a.localeCompare(b));
-    if (!options.filter) return keys;
-    return keys.filter((k) => options.filter?.test(k));
+    const filter = options.filter;
+    if (!filter) return keys;
+    return keys.filter((k) => regexTest(filter, k));
   }
 
   async fingerprintKey(key: string, options: MatchOptions = {}): Promise<EnvSitterFingerprint> {
@@ -209,13 +212,19 @@ export class EnvSitter {
     return results;
   }
 
+  /** Builds a redactor that replaces secret-looking values in arbitrary text; the values never leave it. */
+  async redactor(options: RedactOptions = {}): Promise<EnvSitterRedactor> {
+    const snapshot = await this.source.load();
+    return createRedactor(snapshot.values, options);
+  }
+
   async scan(options: ScanOptions = {}): Promise<ScanFinding[]> {
     const snapshot = await this.source.load();
     const detectionsToRun = options.detect ?? ['jwt', 'url', 'base64'];
 
     const findings: ScanFinding[] = [];
     for (const [key, value] of snapshot.values.entries()) {
-      if (options.keysFilter && !options.keysFilter.test(key)) continue;
+      if (options.keysFilter && !regexTest(options.keysFilter, key)) continue;
 
       const detections: Detection[] = [];
       for (const kind of detectionsToRun) {
@@ -236,7 +245,7 @@ function matchValue(value: string, matcher: Exclude<EnvSitterMatcher, { op: 'exi
 
   if (matcher.op === 'partial_match_prefix') return value.startsWith(matcher.prefix);
   if (matcher.op === 'partial_match_suffix') return value.endsWith(matcher.suffix);
-  if (matcher.op === 'partial_match_regex') return matcher.regex.test(value);
+  if (matcher.op === 'partial_match_regex') return regexTest(matcher.regex, value);
 
   if (matcher.op === 'is_number') return isNumberLike(value);
   if (matcher.op === 'is_boolean') return isBooleanLike(value);

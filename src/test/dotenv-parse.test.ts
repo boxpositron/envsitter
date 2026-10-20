@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { parseDotenvDocument } from '../dotenv/document.js';
 import { parseDotenv } from '../dotenv/parse.js';
 
 test('parseDotenv parses basic assignments and ignores comments', () => {
@@ -37,4 +38,20 @@ test('parseDotenv reports invalid keys', () => {
   const parsed = parseDotenv(input);
   assert.ok(parsed.errors.length >= 1);
   assert.equal(parsed.values.get('OK'), 'value2');
+});
+
+test('parseDotenv shares the document grammar, including issue columns', () => {
+  const input = ['export\tTABBED=1', 'DUP=first', 'DUP=second', "BAD='unterminated", '  NOEQ', ''].join('\n');
+
+  const parsed = parseDotenv(input);
+  assert.equal(parsed.values.get('TABBED'), '1');
+  assert.equal(parsed.values.get('DUP'), 'second');
+  assert.deepEqual(parsed.errors, parseDotenvDocument(input).issues);
+  assert.deepEqual(
+    parsed.errors.map((e) => [e.line, e.column]),
+    [
+      [4, 1],
+      [5, 7]
+    ]
+  );
 });

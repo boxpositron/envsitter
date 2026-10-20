@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { addEnvFileKey, annotateEnvFile, copyEnvFileKeys, deleteEnvFileKeys, formatEnvFile, isExampleEnvFile, setEnvFileKey, unsetEnvFileKey, validateEnvFile } from '../index.js';
 
@@ -44,6 +44,18 @@ test('copyEnvFileKeys copies selected keys and supports rename', async () => {
   assert.ok(out.includes('A_RENAMED=1'));
   assert.ok(out.includes('B=two'));
   assert.ok(out.includes('D=keep'));
+});
+
+test('copyEnvFileKeys include/exclude regexes work with the global flag', async () => {
+  const from = await makeTempFile('.env.prod', ['API_A=1', 'API_B=2', 'API_C=3', 'DB_URL=4'].join('\n') + '\n');
+  const to = await makeTempFile('.env.staging', '');
+
+  const res = await copyEnvFileKeys({ from, to, include: /^API_/g, exclude: /_C$/g });
+
+  assert.deepEqual(
+    res.plan.map((p) => p.fromKey),
+    ['API_A', 'API_B']
+  );
 });
 
 test('annotateEnvFile inserts and updates envsitter comment', async () => {
@@ -189,4 +201,63 @@ test('isExampleEnvFile detects example/template files', () => {
   assert.equal(isExampleEnvFile('database.env.sample'), true);
   assert.equal(isExampleEnvFile('config.env.template'), true);
   assert.equal(isExampleEnvFile('/path/to/api.env.example'), true);
+});
+
+test('edits into an empty env file write one clean line', async () => {
+  const setFile = await makeTempFile('.env', '');
+  const set = await setEnvFileKey({ file: setFile, key: 'A', value: '1', write: true });
+  assert.equal(set.plan.line, 1);
+  assert.equal(await readFile(setFile, 'utf8'), 'A=1\n');
+
+  const addFile = await makeTempFile('.env', '');
+  await addEnvFileKey({ file: addFile, key: 'A', value: '1', write: true });
+  assert.equal(await readFile(addFile, 'utf8'), 'A=1\n');
+
+  const from = await makeTempFile('.env.prod', 'A=1\nB=2\n');
+  const to = join(dirname(from), '.env.staging');
+  await copyEnvFileKeys({ from, to, keys: ['A'], write: true });
+  assert.equal(await readFile(to, 'utf8'), 'A=1\n');
+
+  const empty = await makeTempFile('.env', '');
+  const formatted = await formatEnvFile({ file: empty, write: true });
+  assert.equal(formatted.hasChanges, false);
+  assert.equal(await readFile(empty, 'utf8'), '');
+});
+
+const posixOnly = { skip: process.platform === 'win32' ? 'POSIX permissions and symlinks' : false };
+
+test('writes keep the existing file mode', posixOnly, async () => {
+  const file = await makeTempFile('.env', 'A=1\n');
+  await chmod(file, 0o600);
+
+  const res = await setEnvFileKey({ file, key: 'B', value: '2', write: true });
+  assert.equal(res.wrote, true);
+  assert.equal((await stat(file)).mode & 0o777, 0o600);
+
+  await chmod(file, 0o640);
+  await setEnvFileKey({ file, key: 'C', value: '3', write: true });
+  assert.equal((await stat(file)).mode & 0o777, 0o640);
+});
+
+test('writes create new env files readable only by the owner', posixOnly, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'envsitter-ops-'));
+  const file = join(dir, '.env.local');
+
+  const res = await setEnvFileKey({ file, key: 'A', value: '1', write: true });
+  assert.equal(res.wrote, true);
+  assert.equal(await readFile(file, 'utf8'), 'A=1\n');
+  assert.equal((await stat(file)).mode & 0o777, 0o600);
+});
+
+test('writes through a symlinked env file update its target and keep the link', posixOnly, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'envsitter-ops-'));
+  const target = join(dir, 'shared.env');
+  const link = join(dir, '.env');
+  await writeFile(target, 'A=1\n', 'utf8');
+  await symlink('shared.env', link);
+
+  const res = await setEnvFileKey({ file: link, key: 'B', value: '2', write: true });
+  assert.equal(res.wrote, true);
+  assert.equal((await lstat(link)).isSymbolicLink(), true);
+  assert.equal(await readFile(target, 'utf8'), 'A=1\nB=2\n');
 });

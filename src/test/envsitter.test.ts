@@ -129,3 +129,22 @@ test('EnvSitter scan detects JWT-like and URL values without exposing them', asy
     { key: 'URL', detections: ['url'] }
   ]);
 });
+
+test('EnvSitter regex filters and matchers are stable with the global flag', async () => {
+  const filePath = await makeTempDotenv('API_A=https://a.example\nAPI_B=https://b.example\nAPI_C=https://c.example\nOTHER=https://x.example\n');
+  const es = EnvSitter.fromDotenvFile(filePath);
+
+  assert.deepEqual(await es.listKeys({ filter: /^API_/g }), ['API_A', 'API_B', 'API_C']);
+
+  const matches = await es.matchKeyBulk(['API_A', 'API_B', 'API_C'], { op: 'partial_match_regex', regex: /^https:/g });
+  assert.deepEqual(
+    matches.map((m) => m.match),
+    [true, true, true]
+  );
+
+  const findings = await es.scan({ keysFilter: /^API_/gy, detect: ['url'] });
+  assert.deepEqual(
+    findings.map((f) => f.key),
+    ['API_A', 'API_B', 'API_C']
+  );
+});

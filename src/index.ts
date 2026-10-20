@@ -12,6 +12,8 @@ export {
 
 export { type PepperOptions, resolvePepper } from './pepper.js';
 
+export { type EnvSitterRedactor, type RedactionCount, type RedactOptions, type RedactResult } from './redact.js';
+
 export {
   addEnvFileKey,
   annotateEnvFile,
@@ -23,9 +25,15 @@ export {
   validateEnvFile,
   type AddEnvFileKeyResult,
   type AnnotateEnvFileResult,
+  type AnnotatePlan,
+  type CopyConflictPolicy,
   type CopyEnvFilesResult,
+  type CopyPlanItem,
   type DeleteEnvFileKeysResult,
+  type DotenvIssue,
   type FormatEnvFileResult,
+  type FormatMode,
+  type FormatSort,
   type KeyMutationAction,
   type KeyMutationPlanItem,
   type SetEnvFileKeyResult,
@@ -33,4 +41,4 @@ export {
   type ValidateEnvFileResult
 } from './file-ops.js';
 
-export { isExampleEnvFile } from './dotenv/utils.js';
+export { isEnvFile, isEnvSitterPepperFile, isExampleEnvFile, isSensitiveEnvFile } from './paths.js';

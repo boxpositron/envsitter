@@ -9,36 +9,18 @@ import {
   setDotenvKey,
   unsetDotenvKey,
   validateDotenv,
+  type AnnotatePlan,
+  type CopyConflictPolicy,
+  type CopyPlanItem,
+  type FormatMode,
+  type FormatSort,
   type KeyMutationAction,
   type KeyMutationPlanItem
 } from './dotenv/edit.js';
+import type { DotenvIssue } from './dotenv/document.js';
 import { readTextFileOrEmpty, writeTextFileAtomic } from './dotenv/io.js';
 
-export type DotenvIssue = {
-  line: number;
-  column: number;
-  message: string;
-};
-
-export type CopyConflictPolicy = 'error' | 'skip' | 'overwrite';
-
-export type CopyPlanItem = {
-  fromKey: string;
-  toKey: string;
-  action: 'copy' | 'skip' | 'overwrite' | 'missing_source' | 'conflict';
-  fromLine?: number;
-  toLine?: number;
-};
-
-export type FormatMode = 'sections' | 'global';
-export type FormatSort = 'alpha' | 'none';
-
-export type AnnotatePlan = {
-  key: string;
-  action: 'inserted' | 'updated' | 'not_found' | 'ambiguous';
-  keyLines?: number[];
-  line?: number;
-};
+export type { AnnotatePlan, CopyConflictPolicy, CopyPlanItem, DotenvIssue, FormatMode, FormatSort };
 
 export type CopyEnvFilesResult = {
   from: string;

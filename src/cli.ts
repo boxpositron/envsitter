@@ -1,9 +1,16 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
 import { EnvSitter, type EnvSitterMatcher } from './envsitter.js';
-import { addDotenvKey, annotateDotenvKey, copyDotenvKeys, deleteDotenvKeys, formatDotenv, setDotenvKey, unsetDotenvKey, validateDotenv } from './dotenv/edit.js';
-import { readTextFileOrEmpty, writeTextFileAtomic } from './dotenv/io.js';
-import { isExampleEnvFile } from './dotenv/utils.js';
+import {
+  addEnvFileKey,
+  annotateEnvFile,
+  copyEnvFileKeys,
+  deleteEnvFileKeys,
+  formatEnvFile,
+  setEnvFileKey,
+  unsetEnvFileKey,
+  validateEnvFile
+} from './file-ops.js';
+import { isExampleEnvFile } from './paths.js';
 
 
 function parseRegex(input: string): RegExp {
@@ -35,6 +42,19 @@ async function readStdinText(): Promise<string> {
 function requireValue<T>(value: T | undefined, message: string): T {
   if (value === undefined) throw new Error(message);
   return value;
+}
+
+function toCandidatesByKey(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Candidates JSON must be an object: {"KEY":"candidate"}');
+  }
+
+  const candidates: Record<string, string> = {};
+  for (const [key, candidate] of Object.entries(value)) {
+    if (typeof candidate !== 'string') throw new Error(`Candidate for ${key} must be a string`);
+    candidates[key] = candidate;
+  }
+  return candidates;
 }
 
 function parseMatcher(op: string, candidate: string | undefined): EnvSitterMatcher {
@@ -122,6 +142,7 @@ function printHelp(): void {
       '  match --file <path> (--key <KEY> | --keys <K1,K2> | --all-keys) [--op <op>] [--candidate <value> | --candidate-stdin]',
       '  match-by-key --file <path> (--candidates-json <json> | --candidates-stdin)',
       '  scan --file <path> [--keys-regex <re>] [--detect jwt,url,base64]',
+      '  redact --file <path> [--all] [--min-length <n>]   Reads text on stdin, writes it with secret values replaced',
       '  validate --file <path>',
       '  copy --from <path> --to <path> [--keys <K1,K2>] [--include-regex <re>] [--exclude-regex <re>] [--rename <A=B,C=D>] [--on-conflict error|skip|overwrite] [--write]',
       '  format --file <path> [--mode sections|global] [--sort alpha|none] [--write]',
@@ -169,8 +190,7 @@ async function run(): Promise<number> {
 
   if (cmd === 'validate') {
     const file = requireValue(typeof flags['file'] === 'string' ? flags['file'] : undefined, '--file is required');
-    const contents = await readFile(file, 'utf8');
-    const result = validateDotenv(contents);
+    const result = await validateEnvFile(file);
 
     if (json) jsonOut(result);
     else {
@@ -197,37 +217,21 @@ async function run(): Promise<number> {
     const excludeRaw = typeof flags['exclude-regex'] === 'string' ? flags['exclude-regex'] : undefined;
     const renameRaw = typeof flags['rename'] === 'string' ? flags['rename'] : undefined;
 
-    const sourceContents = await readFile(from, 'utf8');
-    const targetContents = await readTextFileOrEmpty(to);
-
-    const result = copyDotenvKeys({
-      sourceContents,
-      targetContents,
+    const result = await copyEnvFileKeys({
+      from,
+      to,
       ...(keysRaw ? { keys: parseList(keysRaw) } : {}),
       ...(includeRaw ? { include: parseRegex(includeRaw) } : {}),
       ...(excludeRaw ? { exclude: parseRegex(excludeRaw) } : {}),
       ...(renameRaw ? { rename: renameRaw } : {}),
-      onConflict
+      onConflict,
+      write: flags['write'] === true
     });
 
     const conflicts = result.plan.filter((p) => p.action === 'conflict');
-    const willWrite = flags['write'] === true;
-
-    if (willWrite && conflicts.length === 0 && result.hasChanges) {
-      await writeTextFileAtomic(to, result.output);
-    }
 
     if (json) {
-      jsonOut({
-        from,
-        to,
-        onConflict,
-        willWrite,
-        wrote: willWrite && conflicts.length === 0 && result.hasChanges,
-        hasChanges: result.hasChanges,
-        issues: result.issues,
-        plan: result.plan
-      });
+      jsonOut(result);
     } else {
       for (const p of result.plan) {
         const fromAt = p.fromLine ? ` L${p.fromLine}` : '';
@@ -248,14 +252,10 @@ async function run(): Promise<number> {
     const mode = modeRaw === 'global' ? 'global' : 'sections';
     const sort = sortRaw === 'none' ? 'none' : 'alpha';
 
-    const contents = await readFile(file, 'utf8');
-    const result = formatDotenv({ contents, mode, sort });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await formatEnvFile({ file, mode, sort, write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, mode, sort, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues });
+      jsonOut(result);
     } else {
       process.stdout.write(result.hasChanges ? 'CHANGED\n' : 'NO_CHANGES\n');
     }
@@ -270,14 +270,10 @@ async function run(): Promise<number> {
     const lineRaw = typeof flags['line'] === 'string' ? flags['line'] : undefined;
     const line = lineRaw ? Number(lineRaw) : undefined;
 
-    const contents = await readFile(file, 'utf8');
-    const result = annotateDotenvKey({ contents, key, comment, ...(line ? { line } : {}) });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await annotateEnvFile({ file, key, comment, ...(line ? { line } : {}), write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+      jsonOut(result);
     } else {
       process.stdout.write(`${result.plan.action}: ${result.plan.key}\n`);
     }
@@ -295,14 +291,10 @@ async function run(): Promise<number> {
     const valueStdin = flags['value-stdin'] === true ? (await readStdinText()).trimEnd() : undefined;
     const value = valueStdin ?? valueArg ?? '';
 
-    const contents = await readTextFileOrEmpty(file);
-    const result = addDotenvKey({ contents, key, value });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await addEnvFileKey({ file, key, value, write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+      jsonOut(result);
     } else {
       process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
     }
@@ -320,14 +312,10 @@ async function run(): Promise<number> {
     const valueStdin = flags['value-stdin'] === true ? (await readStdinText()).trimEnd() : undefined;
     const value = valueStdin ?? valueArg ?? '';
 
-    const contents = await readTextFileOrEmpty(file);
-    const result = setDotenvKey({ contents, key, value });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await setEnvFileKey({ file, key, value, write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+      jsonOut(result);
     } else {
       process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
     }
@@ -341,14 +329,10 @@ async function run(): Promise<number> {
     const noExampleWarning = flags['no-example-warning'] === true;
     warnIfExampleFile(file, noExampleWarning);
 
-    const contents = await readFile(file, 'utf8');
-    const result = unsetDotenvKey({ contents, key });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await unsetEnvFileKey({ file, key, write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, key, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+      jsonOut(result);
     } else {
       process.stdout.write(`${result.plan.action}: ${result.plan.key}${result.plan.line ? ` L${result.plan.line}` : ''}\n`);
     }
@@ -367,14 +351,10 @@ async function run(): Promise<number> {
     const keys = keyArg ? [keyArg] : keysArg ? parseList(keysArg) : undefined;
     if (!keys || keys.length === 0) throw new Error('Provide --key or --keys');
 
-    const contents = await readFile(file, 'utf8');
-    const result = deleteDotenvKeys({ contents, keys });
-
-    const willWrite = flags['write'] === true;
-    if (willWrite && result.hasChanges) await writeTextFileAtomic(file, result.output);
+    const result = await deleteEnvFileKeys({ file, keys, write: flags['write'] === true });
 
     if (json) {
-      jsonOut({ file, keys, willWrite, wrote: willWrite && result.hasChanges, hasChanges: result.hasChanges, issues: result.issues, plan: result.plan });
+      jsonOut(result);
     } else {
       for (const p of result.plan) {
         process.stdout.write(`${p.action}: ${p.key}${p.line ? ` L${p.line}` : ''}\n`);
@@ -451,16 +431,37 @@ async function run(): Promise<number> {
     const raw = candidatesJson ?? candidatesStdin;
     const parsed = requireValue(raw, 'Provide --candidates-json or --candidates-stdin');
 
-    let candidates: Record<string, string>;
+    let parsedJson: unknown;
     try {
-      candidates = JSON.parse(parsed) as Record<string, string>;
+      parsedJson = JSON.parse(parsed);
     } catch {
       throw new Error('Candidates JSON must be an object: {"KEY":"candidate"}');
     }
+    const candidates = toCandidatesByKey(parsedJson);
 
     const matches = await envsitter.matchCandidatesByKey(candidates, pepperMatchOptions(pepper?.pepperFilePath));
     jsonOut({ matches });
     return matches.some((m) => m.match) ? 0 : 1;
+  }
+
+  if (cmd === 'redact') {
+    const minLengthRaw = typeof flags['min-length'] === 'string' ? Number(flags['min-length']) : undefined;
+    if (minLengthRaw !== undefined && (!Number.isInteger(minLengthRaw) || minLengthRaw < 1)) {
+      throw new Error('--min-length must be a positive integer');
+    }
+
+    const redactor = await envsitter.redactor({
+      ...(minLengthRaw !== undefined ? { minLength: minLengthRaw } : {}),
+      ...(flags['all'] === true ? { all: true } : {})
+    });
+    const result = redactor.redact(await readStdinText());
+
+    if (json) jsonOut(result);
+    else {
+      process.stdout.write(result.text);
+      for (const r of result.redactions) process.stderr.write(`envsitter: redacted ${r.count} occurrence(s) of ${r.key}\n`);
+    }
+    return 0;
   }
 
   if (cmd === 'scan') {

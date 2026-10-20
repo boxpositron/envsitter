@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolvePepper } from '../pepper.js';
@@ -36,6 +36,10 @@ test('resolvePepper creates a pepper file when missing', async () => {
 
     const persisted = (await readFile(pepperPath, 'utf8')).trim();
     assert.ok(persisted.length > 0);
+
+    const projectPepperPath = join(dir, 'project', '.envsitter', 'pepper');
+    await resolvePepper({ pepperFilePath: projectPepperPath });
+    assert.equal(await readFile(join(dir, 'project', '.envsitter', '.gitignore'), 'utf8'), '*\n');
   } finally {
     if (prevEnvSitterPepper === undefined) delete process.env.ENVSITTER_PEPPER;
     else process.env.ENVSITTER_PEPPER = prevEnvSitterPepper;
@@ -43,4 +47,54 @@ test('resolvePepper creates a pepper file when missing', async () => {
     if (prevEnvSitterPepperAlt === undefined) delete process.env.ENV_SITTER_PEPPER;
     else process.env.ENV_SITTER_PEPPER = prevEnvSitterPepperAlt;
   }
+});
+
+async function withoutEnvPepper(fn: () => Promise<void>): Promise<void> {
+  const saved = [process.env.ENVSITTER_PEPPER, process.env.ENV_SITTER_PEPPER] as const;
+  delete process.env.ENVSITTER_PEPPER;
+  delete process.env.ENV_SITTER_PEPPER;
+  try {
+    await fn();
+  } finally {
+    if (saved[0] === undefined) delete process.env.ENVSITTER_PEPPER;
+    else process.env.ENVSITTER_PEPPER = saved[0];
+    if (saved[1] === undefined) delete process.env.ENV_SITTER_PEPPER;
+    else process.env.ENV_SITTER_PEPPER = saved[1];
+  }
+}
+
+test('resolvePepper refuses to replace a malformed pepper file', async () => {
+  await withoutEnvPepper(async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'envsitter-'));
+
+    const empty = join(dir, 'empty-pepper');
+    await writeFile(empty, '');
+    await assert.rejects(() => resolvePepper({ pepperFilePath: empty }), /is empty/);
+    assert.equal(await readFile(empty, 'utf8'), '');
+
+    const short = join(dir, 'short-pepper');
+    await writeFile(short, 'c2hvcnQ=');
+    await assert.rejects(() => resolvePepper({ pepperFilePath: short }), /too short/);
+    assert.equal(await readFile(short, 'utf8'), 'c2hvcnQ=');
+
+    await assert.rejects(() => resolvePepper({ pepperFilePath: join(dir, 'missing'), createIfMissing: false }), /does not exist/);
+  });
+});
+
+const canTestUnreadable = process.platform !== 'win32' && process.getuid?.() !== 0;
+
+test('resolvePepper surfaces an unreadable pepper file instead of replacing it', { skip: canTestUnreadable ? false : 'needs POSIX permissions and a non-root user' }, async () => {
+  await withoutEnvPepper(async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'envsitter-'));
+    const locked = join(dir, 'pepper');
+    await writeFile(locked, 'original-pepper');
+    await chmod(locked, 0o000);
+
+    try {
+      await assert.rejects(() => resolvePepper({ pepperFilePath: locked }), { code: 'EACCES' });
+    } finally {
+      await chmod(locked, 0o600);
+    }
+    assert.equal(await readFile(locked, 'utf8'), 'original-pepper');
+  });
 });

@@ -1,4 +1,5 @@
 import { parseDotenvDocument, stringifyDotenvDocument, type DotenvParsedAssignment, type DotenvIssue } from './document.js';
+import { regexTest } from '../regex.js';
 import { buildAssignmentLine } from './utils.js';
 
 export type DotenvWriteMode = 'dry-run' | 'write';
@@ -91,8 +92,8 @@ export function copyDotenvKeys(options: {
   let hasChanges = false;
 
   for (const fromKey of [...requestedKeys].sort((a, b) => a.localeCompare(b))) {
-    if (options.include && !options.include.test(fromKey)) continue;
-    if (options.exclude && options.exclude.test(fromKey)) continue;
+    if (options.include && !regexTest(options.include, fromKey)) continue;
+    if (options.exclude && regexTest(options.exclude, fromKey)) continue;
 
     const toKey = renameMap.get(fromKey) ?? fromKey;
 

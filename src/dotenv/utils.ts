@@ -1,9 +1,3 @@
-const EXAMPLE_FILE_PATTERN = /\.env\.(example|sample|template|dist|defaults?)$/i;
-
-export function isExampleEnvFile(filePath: string): boolean {
-  return EXAMPLE_FILE_PATTERN.test(filePath);
-}
-
 export function quoteValue(value: string): string {
   if (value === '') return '';
 

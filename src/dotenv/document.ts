@@ -160,6 +160,8 @@ function parseAssignmentLine(raw: string, line: number, issues: DotenvIssue[]): 
 
 export function parseDotenvDocument(contents: string): DotenvDocument {
   const issues: DotenvIssue[] = [];
+  if (contents.length === 0) return { lines: [], issues, endsWithNewline: true };
+
   const endsWithNewline = contents.endsWith('\n');
 
   const split = contents.split(/\r?\n/);
@@ -190,6 +192,7 @@ export function parseDotenvDocument(contents: string): DotenvDocument {
 }
 
 export function stringifyDotenvDocument(doc: DotenvDocument): string {
+  if (doc.lines.length === 0) return '';
   const out = doc.lines.map((l) => l.raw).join('\n');
   return doc.endsWithNewline ? `${out}\n` : out;
 }
