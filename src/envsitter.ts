@@ -12,7 +12,7 @@ type Snapshot = {
 };
 
 type Source = {
-  load(): Promise<Snapshot>;
+  load(options?: { allowErrors?: boolean }): Promise<Snapshot>;
 };
 
 export type EnvSitterFingerprint = {
@@ -212,9 +212,12 @@ export class EnvSitter {
     return results;
   }
 
-  /** Builds a redactor that replaces secret-looking values in arbitrary text; the values never leave it. */
+  /**
+   * Builds a redactor that replaces secret-looking values in arbitrary text; the values never leave it.
+   * Invalid lines are skipped rather than rejected, so one malformed line cannot stop a file's valid secrets from being redacted.
+   */
   async redactor(options: RedactOptions = {}): Promise<EnvSitterRedactor> {
-    const snapshot = await this.source.load();
+    const snapshot = await this.source.load({ allowErrors: true });
     return createRedactor(snapshot.values, options);
   }
 

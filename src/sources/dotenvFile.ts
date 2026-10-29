@@ -18,11 +18,11 @@ export class DotenvFileSource {
     this.options = options;
   }
 
-  async load(): Promise<Snapshot> {
+  async load(options: DotenvFileSourceOptions = {}): Promise<Snapshot> {
     const contents = await readFile(this.filePath, 'utf8');
     const parsed = parseDotenv(contents);
 
-    if (parsed.errors.length > 0 && !this.options.allowErrors) {
+    if (parsed.errors.length > 0 && !(options.allowErrors ?? this.options.allowErrors)) {
       const message = parsed.errors.map((e) => `L${e.line}: ${e.message}`).join(', ');
       throw new Error(`Invalid dotenv file: ${message}`);
     }

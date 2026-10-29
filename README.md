@@ -220,7 +220,7 @@ envsitter redact --file .env < app.log > app.redacted.log
 envsitter redact --file .env --json < app.log
 ```
 
-A value is redacted when it is at least 8 characters long, is not a plain number or boolean, and looks secret: its key name contains a word such as `TOKEN`, `SECRET`, `PASSWORD`, or `API_KEY`; it is shaped like a random token; it is a URL with a password (the bare password is redacted too); or it is a PEM block. Ordinary config such as `NODE_ENV=development` is left alone. `--all` redacts every value, and `--min-length <n>` changes the length floor. Encoded or transformed values (base64, split strings) are not detected.
+A value is redacted when it is at least 8 characters long, is not a plain number or boolean, and looks secret: its key name contains a word such as `TOKEN`, `SECRET`, `PASSWORD`, or `API_KEY`; it is shaped like a random token; it is a URL with a password (the bare password is redacted too); or it is a PEM block. Ordinary config such as `NODE_ENV=development` is left alone. `--all` redacts every value, and `--min-length <n>` changes the length floor. Encoded or transformed values (base64, split strings) are not detected. Invalid lines in the env file are skipped, so the valid ones are still redacted.
 
 ### Validate dotenv syntax
 

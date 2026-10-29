@@ -72,6 +72,16 @@ test('redactor covers each random-looking line of a multi-line key', () => {
   assert.deepEqual(result.redactions, [{ key: 'TLS_CERT_DATA', count: 1 }]);
 });
 
+test('redactor uses the valid lines of a file that has invalid lines', async () => {
+  const file = await makeEnvFile(['export NODE_BINARY=$(command -v node)', 'if [ -f .xcode.env.local ]; then', 'API_TOKEN=tok_live_9f8a7b6c5d4e', 'fi'].join('\n'));
+  const sitter = EnvSitter.fromDotenvFile(file);
+
+  await assert.rejects(() => sitter.listKeys(), /Invalid dotenv file/);
+  const redactor = await sitter.redactor();
+  assert.deepEqual(redactor.keys, ['API_TOKEN']);
+  assert.equal(redactor.redact('token tok_live_9f8a7b6c5d4e').text, 'token [envsitter: API_TOKEN redacted]');
+});
+
 test('redactor returns text unchanged when nothing looks secret', () => {
   const redactor = createRedactor(new Map([['NODE_ENV', 'production'], ['PORT', '8080']]));
   assert.deepEqual(redactor.keys, []);

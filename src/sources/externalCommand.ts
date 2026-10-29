@@ -26,7 +26,7 @@ export class ExternalCommandSource {
     this.options = options;
   }
 
-  async load(): Promise<Snapshot> {
+  async load(options: { allowErrors?: boolean } = {}): Promise<Snapshot> {
     const { stdout } = await execFileAsync(this.command, [...this.args], {
       cwd: this.options.cwd,
       env: this.options.env,
@@ -35,7 +35,7 @@ export class ExternalCommandSource {
 
     const parsed = parseDotenv(stdout);
 
-    if (parsed.errors.length > 0 && !this.options.allowErrors) {
+    if (parsed.errors.length > 0 && !(options.allowErrors ?? this.options.allowErrors)) {
       const message = parsed.errors.map((e) => `L${e.line}: ${e.message}`).join(', ');
       throw new Error(`Invalid dotenv content from external command: ${message}`);
     }
