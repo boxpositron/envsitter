@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 This project follows [Semantic Versioning](https://semver.org/) and the format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 0.1.1 (2026-10-29)
+
+### Changed
+
+- `EnvSitter#redactor()` and `envsitter redact` now skip invalid lines instead of rejecting the whole file, so one malformed line (or a shell script named like an env file, such as React Native's `ios/.xcode.env`) no longer stops the file's valid secrets from being redacted. Every other API still rejects invalid files.
+
 ## 0.1.0 (2026-10-21)
 
 ### Added
